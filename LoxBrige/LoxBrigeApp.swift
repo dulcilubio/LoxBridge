@@ -9,9 +9,17 @@ import SwiftUI
 
 @main
 struct LoxBrigeApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @AppStorage("onboardingCompleted") private var onboardingCompleted = false
+    @StateObject private var appModel = AppViewModel()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if onboardingCompleted {
+                ContentView(model: appModel)
+            } else {
+                OnboardingView(model: appModel)
+            }
         }
     }
 }
