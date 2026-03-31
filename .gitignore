@@ -39,3 +39,4 @@ fastlane/test_output
 *.p12
 *.mobileprovision
 AuthKey_*.p8
+LoxBrige/Secrets.swift

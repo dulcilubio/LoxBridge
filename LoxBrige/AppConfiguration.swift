@@ -4,7 +4,7 @@ struct AppConfiguration {
     static let shared = AppConfiguration()
 
     // Replace with real Livelox OAuth values.
-    let liveloxClientId = "LoxBridge"
+    let liveloxClientId = Secrets.liveloxClientId
     let liveloxAuthURL = "https://api.livelox.com/oauth2/authorize"
     let liveloxTokenURL = "https://api.livelox.com/oauth2/token"
     let liveloxRedirectScheme = "loxbrige"
