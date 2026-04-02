@@ -57,8 +57,8 @@ final class NotificationManager {
 
     func scheduleUploadPrompt(workoutUUID: UUID, delayMinutes: Int? = nil) async {
         let content = UNMutableNotificationContent()
-        content.title = String(localized: "Upload workout route?")
-        content.subtitle = String(localized: "New workout detected")
+        content.title = String(localized: "Upload activity route?")
+        content.subtitle = String(localized: "New activity detected")
         content.body = String(localized: "Do you want to upload the GPS route to Livelox?")
         content.sound = .default
         content.categoryIdentifier = Self.categoryIdentifier
@@ -91,7 +91,7 @@ final class NotificationManager {
         guard isEnabled("notifyOnUploadStarted", default: false) else { return }
         let content = UNMutableNotificationContent()
         content.title = String(localized: "Uploading to Livelox")
-        content.body = String(localized: "We are uploading your workout route in the background.")
+        content.body = String(localized: "We are uploading your activity route in the background.")
         content.sound = .default
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         try? await UNUserNotificationCenter.current().add(request)
@@ -101,7 +101,7 @@ final class NotificationManager {
     func scheduleAutoUploadNeedsAuth() async {
         let content = UNMutableNotificationContent()
         content.title = String(localized: "Livelox not connected")
-        content.body = String(localized: "Connect your Livelox account to upload workout routes automatically.")
+        content.body = String(localized: "Connect your Livelox account to upload activity routes automatically.")
         content.sound = .default
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         try? await UNUserNotificationCenter.current().add(request)

@@ -24,7 +24,7 @@ struct HomeView: View {
                 OrienteeringMapSnippet()
 
                 // MARK: Description
-                Text("Automatically bridge your orienteering runs to Livelox — whether you run with Apple Watch or iPhone. After each workout, LoxBridge extracts your GPS route and uploads it to Livelox with no cables and no manual exports. Just run, and your route appears in Livelox ready to replay and share.")
+                Text("Automatically bridge your orienteering activities to Livelox — whether you run with Apple Watch or iPhone. After each activity, LoxBridge extracts your GPS route and uploads it to Livelox with no cables and no manual exports. Just go, and your route appears in Livelox ready to replay and share.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

@@ -45,8 +45,8 @@ struct SettingsView: View {
                             Text("Minimum distance")
                             Text(
                                 minWorkoutDistanceKm > 0
-                                    ? String(format: String(localized: "Workouts shorter than %.1f km will not be sent to Livelox"), minWorkoutDistanceKm)
-                                    : String(localized: "All workouts will be sent to Livelox regardless of distance")
+                                    ? String(format: String(localized: "Activities shorter than %.1f km will not be sent to Livelox"), minWorkoutDistanceKm)
+                                    : String(localized: "All activities will be sent to Livelox regardless of distance")
                             )
                             .font(.caption)
                             .foregroundStyle(.secondary)

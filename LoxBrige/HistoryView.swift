@@ -23,7 +23,7 @@ struct HistoryView: View {
                             .foregroundStyle(.secondary)
                         Text("No routes yet")
                             .font(.headline)
-                        Text("Complete an outdoor workout with your Apple Watch and it will appear here.")
+                        Text("Complete an outdoor activity with your Apple Watch and it will appear here.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)

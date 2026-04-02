@@ -16,28 +16,28 @@ struct OnboardingView: View {
             systemImage: "hand.raised.fill",
             imageColor: .blue,
             title: "Your Privacy",
-            description: "LoxBridge reads your workout GPS routes from Apple Health and sends them to Livelox — only when you choose. Your data never goes anywhere else, is never sold, and is never used for advertising.",
+            description: "LoxBridge reads your activity GPS routes from Apple Health and sends them to Livelox — only when you choose. Your data never goes anywhere else, is never sold, and is never used for advertising.",
             actionTitle: "I Understand & Continue"
         ),
         OnboardingStep(
             systemImage: "heart.fill",
             imageColor: .red,
             title: "Connect Apple Health",
-            description: "LoxBridge reads your Apple Watch and iPhone workout routes through the Apple Health app to generate GPX files. Tap below to grant access.",
+            description: "LoxBridge reads your Apple Watch and iPhone activity routes through the Apple Health app to generate GPX files. Tap below to grant access.",
             actionTitle: "Authorize Health Access"
         ),
         OnboardingStep(
             systemImage: "mappin.and.ellipse",
             imageColor: .accentColor,
             title: "Connect Livelox",
-            description: "Sign in to your Livelox account so routes can be uploaded automatically after each workout.",
+            description: "Sign in to your Livelox account so routes can be uploaded automatically after each activity.",
             actionTitle: "Connect Livelox"
         ),
         OnboardingStep(
             systemImage: "checkmark.seal.fill",
             imageColor: .green,
             title: "All Set!",
-            description: "LoxBridge will run in the background. After each outdoor workout you'll receive a notification to upload the route.",
+            description: "LoxBridge will run in the background. After each outdoor activity you'll receive a notification to upload the route.",
             actionTitle: "Get Started"
         )
     ]

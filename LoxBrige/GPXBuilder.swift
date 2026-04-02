@@ -12,7 +12,7 @@ struct GPXBuilder {
         var gpx = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
         gpx += "<gpx version=\"1.1\" creator=\"LoxBridge\" xmlns=\"http://www.topografix.com/GPX/1/1\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:schemaLocation=\"http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd\">\n"
         gpx += "  <trk>\n"
-        gpx += "    <name>Workout Route</name>\n"
+        gpx += "    <name>Activity Route</name>\n"
         gpx += "    <trkseg>\n"
 
         for location in locations {
