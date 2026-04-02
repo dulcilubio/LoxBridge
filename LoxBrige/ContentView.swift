@@ -9,6 +9,7 @@ import SwiftUI
 
 extension Notification.Name {
     static let openRoutesTab = Notification.Name("OpenRoutesTab")
+    static let routeListChanged = Notification.Name("RouteListChanged")
 }
 
 struct ContentView: View {

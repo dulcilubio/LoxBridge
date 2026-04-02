@@ -17,8 +17,17 @@ final class AppViewModel: ObservableObject {
     private let healthKitManager = HealthKitManager.shared
     private let oauthManager = OAuthManager.shared
     private var isInitialized = false
+    private var routeListObserver: AnyCancellable?
 
     func initialize() async {
+        routeListObserver = NotificationCenter.default
+            .publisher(for: .routeListChanged)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.recentRoutes = StorageManager.shared.recentRoutes(limit: 50)
+                self.importStatus = StorageManager.shared.lastImportStatus()
+            }
         await refreshStatus()
         isInitialized = true
         backgroundEnabled = healthKitManager.isBackgroundEnabled

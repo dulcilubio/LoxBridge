@@ -148,6 +148,7 @@ final class WorkoutProcessor {
         let metadata = try storageManager.saveGPX(gpxString: gpxString, workoutUUID: workoutUUID, stats: stats)
         storageManager.markProcessed(workoutUUID: workoutUUID)
         AppLogger.route.info("GPX saved: \(metadata.gpxFilePath) (\(String(format: "%.2f", distKm)) km, \(Int(workout.duration))s)")
+        NotificationCenter.default.post(name: .routeListChanged, object: nil)
 
         // Reverse-geocode the starting point to get a human-readable area name.
         // Done in a detached Task so it doesn't block the upload pipeline.

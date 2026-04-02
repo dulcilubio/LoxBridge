@@ -116,6 +116,7 @@ final class LiveloxUploader {
                     eventName: status.eventName,
                     className: status.className
                 )
+                NotificationCenter.default.post(name: .routeListChanged, object: nil)
                 AppLogger.upload.info("Import status (\(attempt)/\(maxAttempts)): \(status.rawStatus)")
 
                 if status.isTerminal {
