@@ -16,9 +16,11 @@ final class AppViewModel: ObservableObject {
 
     private let healthKitManager = HealthKitManager.shared
     private let oauthManager = OAuthManager.shared
+    private var isInitialized = false
 
     func initialize() async {
         await refreshStatus()
+        isInitialized = true
         backgroundEnabled = healthKitManager.isBackgroundEnabled
         if healthKitStatus == "Authorized" && backgroundEnabled {
             do {
@@ -89,6 +91,7 @@ final class AppViewModel: ObservableObject {
     /// Called when the app returns to the foreground. Refreshes status, detects
     /// HealthKit permission revocation, and retries any pending uploads.
     func refreshForeground() async {
+        guard isInitialized else { return }
         let previous = healthKitStatus
         await refreshStatus()
         if previous == "Authorized" && healthKitStatus != "Authorized" && backgroundEnabled {

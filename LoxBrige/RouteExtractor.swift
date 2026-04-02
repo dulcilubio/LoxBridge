@@ -7,9 +7,19 @@ final class RouteExtractor {
     private let healthStore = HKHealthStore()
 
     func extractLocations(for workout: HKWorkout) async throws -> [CLLocation] {
-        let routes = try await fetchRoutes(for: workout)
+        // Apple Watch saves the workout metadata first; GPS route data is synced separately
+        // and may arrive seconds to minutes later. Retry with increasing delays.
+        var routes: [HKWorkoutRoute] = try await fetchRoutes(for: workout)
         if routes.isEmpty {
-            AppLogger.route.info("No HKWorkoutRoute samples found")
+            for delaySecs: UInt64 in [10, 20, 30] {
+                AppLogger.route.info("No routes yet, retrying in \(delaySecs)s…")
+                try await Task.sleep(nanoseconds: delaySecs * 1_000_000_000)
+                routes = try await fetchRoutes(for: workout)
+                if !routes.isEmpty { break }
+            }
+        }
+        if routes.isEmpty {
+            AppLogger.route.info("No HKWorkoutRoute samples found after retries")
             return []
         }
 
