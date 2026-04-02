@@ -99,7 +99,11 @@ final class LiveloxUploader {
 
     private func pollImportStatus(importId: String, workoutUUID: UUID) async {
         let maxAttempts = 6
-        let delaySeconds: UInt64 = 4
+        let delaySeconds: UInt64 = 8
+
+        // Livelox processes GPX imports asynchronously — give the backend time
+        // to move the file into Azure Blob Storage before the first status poll.
+        try? await Task.sleep(nanoseconds: 15 * 1_000_000_000)
 
         for attempt in 1...maxAttempts {
             do {
@@ -196,10 +200,12 @@ private struct ImportStatus {
     let className: String?
 
     /// Whether the Livelox import process has reached a final state (success or failure).
+    /// Note: "error" is intentionally excluded — it can be a transient BlobNotFound
+    /// during Livelox's async processing and should not stop polling prematurely.
     var isTerminal: Bool {
         let l = rawStatus.lowercased()
         return l.contains("done") || l.contains("complete") || l.contains("imported")
-            || l.contains("failed") || l.contains("error")
+            || l.contains("failed")
     }
 
     /// User-facing status string — avoids internal API words like "pending" or "imported".
