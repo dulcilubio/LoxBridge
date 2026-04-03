@@ -5,6 +5,7 @@ struct HistoryView: View {
     @ObservedObject var model: AppViewModel
 
     @State private var showDeleteAllConfirmation = false
+    @State private var showLegend = false
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -83,9 +84,13 @@ struct HistoryView: View {
                         }
                     }
                 }
-                // Trailing: standard swipe-to-delete toggle
+                // Trailing: legend button
                 ToolbarItem(placement: .topBarTrailing) {
-                    EditButton()
+                    Button {
+                        showLegend = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                    }
                 }
             }
             .confirmationDialog(
@@ -102,6 +107,10 @@ struct HistoryView: View {
                 Text("GPX files are permanently deleted from this device. Routes already on Livelox are not affected.")
             }
             .refreshable { await model.refreshStatus() }
+            .sheet(isPresented: $showLegend) {
+                LegendView()
+                    .presentationDetents([.medium])
+            }
         }
     }
 }
@@ -226,34 +235,16 @@ private struct RouteRow: View {
                         .font(.caption2)
                 }
 
-                // Action buttons
-                HStack(spacing: 8) {
-                    // Upload / retry button
-                    if let onUpload, !route.uploaded {
-                        Button("Upload to Livelox") { onUpload() }
-                            .font(.caption2)
-                            .buttonStyle(.bordered)
-                    } else if hasFailed {
-                        Button("Try Again") { onUpload?() }
-                            .font(.caption2)
-                            .buttonStyle(.bordered)
-                            .tint(.red)
-                    }
-
-                    // Share GPX — visible whenever the local file exists
-                    if let gpxURL = route.gpxFileURL {
-                        ShareLink(
-                            item: gpxURL,
-                            preview: SharePreview(
-                                route.shareLabel,
-                                icon: Image(systemName: "map.fill")
-                            )
-                        ) {
-                            Label("Share GPX", systemImage: "square.and.arrow.up")
-                        }
+                // Action buttons — upload/retry only; GPX sharing via left swipe
+                if let onUpload, !route.uploaded {
+                    Button("Upload to Livelox") { onUpload() }
                         .font(.caption2)
                         .buttonStyle(.bordered)
-                    }
+                } else if hasFailed {
+                    Button("Try Again") { onUpload?() }
+                        .font(.caption2)
+                        .buttonStyle(.bordered)
+                        .tint(.red)
                 }
             }
         }
@@ -294,6 +285,63 @@ private extension RouteMetadata {
         if let dist = distanceKm { parts.append(String(format: "%.1f km", dist)) }
         if let name = locationName { parts.append(name) }
         return parts.isEmpty ? String(localized: "GPX Route") : parts.joined(separator: " · ")
+    }
+}
+
+// MARK: - Legend sheet
+
+private struct LegendView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Status icons") {
+                    LegendRow(icon: "checkmark.circle.fill", color: .green,  label: "On Livelox",      detail: "Route successfully imported")
+                    LegendRow(icon: "clock.circle",          color: .orange, label: "Pending upload",  detail: "Waiting to be sent to Livelox")
+                    LegendRow(icon: "arrow.up.circle.fill",  color: .blue,   label: "Uploaded",        detail: "Sent — waiting for Livelox to import")
+                    LegendRow(icon: "exclamationmark.circle.fill", color: .red, label: "Failed",       detail: "Something went wrong — tap Try Again")
+                }
+                Section("Activity details") {
+                    LegendRow(icon: "flag.fill",                       color: .primary, label: "Event name",    detail: "Competition or training event from Livelox")
+                    LegendRow(icon: "list.bullet",                     color: .primary, label: "Class",         detail: "Your competition class (e.g. H14, D21)")
+                    LegendRow(icon: "figure.run",                      color: .primary, label: "Distance",      detail: "Total GPS distance in kilometres")
+                    LegendRow(icon: "clock",                           color: .primary, label: "Duration",      detail: "Total time for the activity")
+                    LegendRow(icon: "gauge.with.dots.needle.33percent",color: .primary, label: "Pace",          detail: "Average pace in minutes per kilometre")
+                    LegendRow(icon: "location.fill",                   color: .primary, label: "Location",      detail: "Area name based on GPS start point")
+                }
+                Section("Gestures") {
+                    LegendRow(icon: "arrow.left", color: .primary, label: "Swipe left", detail: "Delete route from this device")
+                    LegendRow(icon: "arrow.right", color: .primary, label: "Swipe right", detail: "Share GPX file")
+                }
+            }
+            .navigationTitle("Route History Guide")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct LegendRow: View {
+    let icon: String
+    let color: Color
+    let label: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label).font(.subheadline)
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
