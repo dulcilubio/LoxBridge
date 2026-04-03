@@ -142,7 +142,8 @@ final class WorkoutProcessor {
             distanceKm: distKm > 0 ? distKm : nil,
             durationSeconds: workout.duration > 0 ? workout.duration : nil,
             activityTypeName: workout.workoutActivityType.displayName,
-            deviceName: deviceName(for: workout)
+            deviceName: deviceName(for: workout),
+            workoutDate: workout.startDate
         )
 
         let metadata = try storageManager.saveGPX(gpxString: gpxString, workoutUUID: workoutUUID, stats: stats)

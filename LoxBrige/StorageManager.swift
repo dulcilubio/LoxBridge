@@ -8,6 +8,8 @@ struct WorkoutStats {
     var activityTypeName: String?
     /// Human-readable device description, e.g. "Erik's Apple Watch (Watch6,1)".
     var deviceName: String?
+    /// The actual start time of the workout/activity.
+    var workoutDate: Date?
 }
 
 struct RouteMetadata: Codable {
@@ -83,7 +85,7 @@ final class StorageManager {
                 workoutUUID: workoutUUID,
                 gpxFilePath: fileURL.path,
                 uploaded: false,
-                createdAt: Date(),
+                createdAt: stats.workoutDate ?? Date(),
                 importStatus: "Pending upload",
                 importStatusUpdatedAt: Date(),
                 liveloxURL: nil,
