@@ -31,14 +31,8 @@ final class AppViewModel: ObservableObject {
         await refreshStatus()
         isInitialized = true
         backgroundEnabled = healthKitManager.isBackgroundEnabled
-        if healthKitStatus == "Authorized" && backgroundEnabled {
-            do {
-                try await healthKitManager.startBackgroundDelivery()
-                healthKitManager.startWorkoutObserver()
-            } catch {
-                lastError = error.localizedDescription
-            }
-        }
+        // Observer is started by AppDelegate on every launch (foreground + background).
+        // Nothing to do here — startWorkoutObserver() is a no-op if already running.
     }
 
     func requestHealthKitAuthorization() async {

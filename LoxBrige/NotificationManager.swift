@@ -21,7 +21,7 @@ final class NotificationManager {
         let settings = await center.notificationSettings()
         if settings.authorizationStatus == .notDetermined {
             do {
-                _ = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+                _ = try await center.requestAuthorization(options: [.alert, .sound, .badge, .timeSensitive])
             } catch {
                 AppLogger.notification.error("Notification authorization failed: \(error.localizedDescription)")
             }
@@ -134,6 +134,10 @@ final class NotificationManager {
             content.body = eventName.map {
                 String(format: String(localized: "Your route from %@ is ready to replay."), $0)
             } ?? String(localized: "Your route is now on Livelox.")
+            // .timeSensitive breaks through Focus modes (e.g. Workout Focus during
+            // orienteering) and triggers a distinct haptic on Apple Watch.
+            content.interruptionLevel = .timeSensitive
+            content.relevanceScore = 1.0
         } else {
             content.title = String(localized: "Import status")
             content.body = message
