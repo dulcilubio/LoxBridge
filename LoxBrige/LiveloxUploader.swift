@@ -1,15 +1,29 @@
 import Foundation
 import OSLog
 
-final class LiveloxUploader {
+actor LiveloxUploader {
     static let shared = LiveloxUploader()
 
     private let storageManager = StorageManager.shared
     private let oauthManager = OAuthManager.shared
 
+    /// UUIDs for which an upload HTTP request is currently in flight.
+    /// The actor boundary makes the contains/insert pair atomic — no two concurrent
+    /// tasks can both pass the guard for the same UUID.
+    private var uploading: Set<UUID> = []
+
     private init() {}
 
     func upload(workoutUUID: UUID) async throws {
+        // Prevent a second concurrent upload of the same route (e.g. observer pipeline
+        // and processPendingUploads both firing for the same workout).
+        guard !uploading.contains(workoutUUID) else {
+            AppLogger.upload.info("Upload already in progress for \(workoutUUID.uuidString), skipping")
+            return
+        }
+        uploading.insert(workoutUUID)
+        defer { uploading.remove(workoutUUID) }
+
         guard let metadata = storageManager.metadata(for: workoutUUID) else {
             throw AppError.metadataNotFound
         }
