@@ -10,25 +10,27 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         let center = UNUserNotificationCenter.current()
         center.delegate = self
         NotificationManager.shared.registerCategories()
+
+        // Register HKObserverQuery SYNCHRONOUSLY before returning true.
+        // HealthKit fires registered observer queries as soon as the app launches for a
+        // background delivery wake. If the query isn't registered by the time this method
+        // returns, that wake is wasted — so we cannot defer this into an async Task.
+        // isBackgroundEnabled is a plain UserDefaults bool; no async call needed.
+        let hk = HealthKitManager.shared
+        if hk.isBackgroundEnabled {
+            hk.startWorkoutObserver()
+        }
+
+        // Async work runs concurrently — does NOT block observer registration above.
         Task {
+            if hk.isBackgroundEnabled {
+                try? await hk.startBackgroundDelivery()
+            }
             await NotificationManager.shared.requestAuthorizationIfNeeded()
             await LiveloxUploader.shared.processPendingUploads()
-
-            // Start the HealthKit observer on every launch — both foreground and
-            // background. Without this, HealthKit background-delivery wakes the app
-            // but the observer query (registered only via SwiftUI .task{}) is never
-            // started, so workouts are silently missed until the user opens the app.
-            await Self.startObserverIfEnabled()
         }
-        return true
-    }
 
-    private static func startObserverIfEnabled() async {
-        let hk = HealthKitManager.shared
-        guard hk.isBackgroundEnabled,
-              await hk.readAuthorizationStatusText() == "Authorized" else { return }
-        try? await hk.startBackgroundDelivery()
-        hk.startWorkoutObserver() // no-op if already running
+        return true
     }
 
     func userNotificationCenter(

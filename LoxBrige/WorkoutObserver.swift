@@ -1,6 +1,7 @@
 import Foundation
 import HealthKit
 import OSLog
+import UIKit
 
 final class WorkoutObserver {
     private let healthStore: HKHealthStore
@@ -19,9 +20,22 @@ final class WorkoutObserver {
                 return
             }
             AppLogger.workout.info("Observer triggered")
+
+            // Acknowledge the wake immediately so HealthKit does not time us out.
+            // If completionHandler is not called within ~30 s HealthKit penalises the
+            // app and may stop delivering future background wakes.
+            completionHandler()
+
+            // Request extended background execution time so the full pipeline
+            // (route extraction retries + Livelox upload + polling) can finish before
+            // iOS suspends the process.
+            let bgTaskID = UIApplication.shared.beginBackgroundTask(withName: "WorkoutProcessing") {
+                AppLogger.workout.warning("Background task expired before processing finished")
+            }
+
             Task {
                 await self?.fetchLatestWorkoutAndProcess()
-                completionHandler()
+                UIApplication.shared.endBackgroundTask(bgTaskID)
             }
         }
         healthStore.execute(query)
