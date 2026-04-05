@@ -90,6 +90,19 @@ final class WorkoutProcessor {
         }
     }
 
+    /// Subsamples a CLLocation array to at most `maxPoints` evenly-spaced entries,
+    /// returning [[lat, lon]] pairs suitable for WatchConnectivity transfer.
+    private func subsamplePoints(locations: [CLLocation], maxPoints: Int) -> [[Double]] {
+        guard locations.count > maxPoints else {
+            return locations.map { [$0.coordinate.latitude, $0.coordinate.longitude] }
+        }
+        let stride = Double(locations.count - 1) / Double(maxPoints - 1)
+        return (0..<maxPoints).map { i in
+            let idx = min(Int((Double(i) * stride).rounded()), locations.count - 1)
+            return [locations[idx].coordinate.latitude, locations[idx].coordinate.longitude]
+        }
+    }
+
     /// Returns the total route distance in kilometres by summing consecutive point distances.
     private func totalDistanceKm(for locations: [CLLocation]) -> Double {
         guard locations.count > 1 else { return 0 }
@@ -150,6 +163,20 @@ final class WorkoutProcessor {
         storageManager.markProcessed(workoutUUID: workoutUUID)
         AppLogger.route.info("GPX saved: \(metadata.gpxFilePath) (\(String(format: "%.2f", distKm)) km, \(Int(workout.duration))s)")
         NotificationCenter.default.post(name: .routeListChanged, object: nil)
+
+        // Send route to Watch app — must happen while locations array is still in scope.
+        let watchPoints = subsamplePoints(locations: locations, maxPoints: 200)
+        let watchPayload = WatchRoutePayload(
+            workoutUUID: workoutUUID.uuidString,
+            status: "Saved",
+            distanceKm: stats.distanceKm,
+            durationSeconds: stats.durationSeconds,
+            activityTypeName: stats.activityTypeName,
+            locationName: nil,
+            createdAt: stats.workoutDate?.timeIntervalSince1970,
+            points: watchPoints
+        )
+        WatchSessionManager.shared.sendWithPoints(payload: watchPayload)
 
         // Reverse-geocode the starting point to get a human-readable area name.
         // Done in a detached Task so it doesn't block the upload pipeline.

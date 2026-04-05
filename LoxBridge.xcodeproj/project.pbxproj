@@ -7,10 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		031385D02F826AD400C08142 /* LoxBridgeWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 031385C62F826AD300C08142 /* LoxBridgeWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		03BAA9C42F64712C007C405A /* AGENTS.md in Resources */ = {isa = PBXBuildFile; fileRef = 03BAA9C32F647124007C405A /* AGENTS.md */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		031385CE2F826AD400C08142 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 03BAA9AD2F646CB1007C405A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 031385C52F826AD300C08142;
+			remoteInfo = "LoxBridgeWatch Watch App";
+		};
 		031605BC2F71EA6200A1B6EB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 03BAA9AD2F646CB1007C405A /* Project object */;
@@ -20,7 +28,22 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		031385D42F826AD400C08142 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				031385D02F826AD400C08142 /* LoxBridgeWatch Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		031385C62F826AD300C08142 /* LoxBridgeWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "LoxBridgeWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		031605B62F71EA6200A1B6EB /* LoxBridgeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LoxBridgeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		03BAA9B52F646CB1007C405A /* LoxBridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LoxBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		03BAA9C32F647124007C405A /* AGENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = AGENTS.md; sourceTree = "<group>"; };
@@ -37,6 +60,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		031385C72F826AD300C08142 /* LoxBridgeWatch Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "LoxBridgeWatch Watch App";
+			sourceTree = "<group>";
+		};
 		031605B72F71EA6200A1B6EB /* LoxBridgeUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = LoxBridgeUITests;
@@ -53,6 +81,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		031385C32F826AD300C08142 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		031605B32F71EA6200A1B6EB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -76,6 +111,7 @@
 				03BAA9C32F647124007C405A /* AGENTS.md */,
 				03BAA9B72F646CB1007C405A /* LoxBrige */,
 				031605B72F71EA6200A1B6EB /* LoxBridgeUITests */,
+				031385C72F826AD300C08142 /* LoxBridgeWatch Watch App */,
 				03BAA9B62F646CB1007C405A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -85,6 +121,7 @@
 			children = (
 				03BAA9B52F646CB1007C405A /* LoxBridge.app */,
 				031605B62F71EA6200A1B6EB /* LoxBridgeUITests.xctest */,
+				031385C62F826AD300C08142 /* LoxBridgeWatch Watch App.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -92,6 +129,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		031385C52F826AD300C08142 /* LoxBridgeWatch Watch App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 031385D12F826AD400C08142 /* Build configuration list for PBXNativeTarget "LoxBridgeWatch Watch App" */;
+			buildPhases = (
+				031385C22F826AD300C08142 /* Sources */,
+				031385C32F826AD300C08142 /* Frameworks */,
+				031385C42F826AD300C08142 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				031385C72F826AD300C08142 /* LoxBridgeWatch Watch App */,
+			);
+			name = "LoxBridgeWatch Watch App";
+			packageProductDependencies = (
+			);
+			productName = "LoxBridgeWatch Watch App";
+			productReference = 031385C62F826AD300C08142 /* LoxBridgeWatch Watch App.app */;
+			productType = "com.apple.product-type.application";
+		};
 		031605B52F71EA6200A1B6EB /* LoxBridgeUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 031605C02F71EA6200A1B6EB /* Build configuration list for PBXNativeTarget "LoxBridgeUITests" */;
@@ -122,10 +181,12 @@
 				03BAA9B12F646CB1007C405A /* Sources */,
 				03BAA9B22F646CB1007C405A /* Frameworks */,
 				03BAA9B32F646CB1007C405A /* Resources */,
+				031385D42F826AD400C08142 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				031385CF2F826AD400C08142 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				03BAA9B72F646CB1007C405A /* LoxBrige */,
@@ -144,9 +205,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2630;
+				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2630;
 				TargetAttributes = {
+					031385C52F826AD300C08142 = {
+						CreatedOnToolsVersion = 26.4;
+					};
 					031605B52F71EA6200A1B6EB = {
 						CreatedOnToolsVersion = 26.3;
 						TestTargetID = 03BAA9B42F646CB1007C405A;
@@ -180,11 +244,19 @@
 			targets = (
 				03BAA9B42F646CB1007C405A /* LoxBridge */,
 				031605B52F71EA6200A1B6EB /* LoxBridgeUITests */,
+				031385C52F826AD300C08142 /* LoxBridgeWatch Watch App */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		031385C42F826AD300C08142 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		031605B42F71EA6200A1B6EB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -203,6 +275,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		031385C22F826AD300C08142 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		031605B22F71EA6200A1B6EB /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -220,6 +299,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		031385CF2F826AD400C08142 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 031385C52F826AD300C08142 /* LoxBridgeWatch Watch App */;
+			targetProxy = 031385CE2F826AD400C08142 /* PBXContainerItemProxy */;
+		};
 		031605BD2F71EA6200A1B6EB /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 03BAA9B42F646CB1007C405A /* LoxBridge */;
@@ -228,6 +312,77 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		031385D22F826AD400C08142 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 257V44642S;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = LoxBridgeWatch;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKApplication = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = se.erikfrick.loxbridge;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = se.erikfrick.loxbridge.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.4;
+			};
+			name = Debug;
+		};
+		031385D32F826AD400C08142 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 257V44642S;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = LoxBridgeWatch;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKApplication = YES;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = se.erikfrick.loxbridge;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = se.erikfrick.loxbridge.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 26.4;
+			};
+			name = Release;
+		};
 		031605BE2F71EA6200A1B6EB /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -406,7 +561,7 @@
 				CODE_SIGN_ENTITLEMENTS = LoxBrige/LoxBrigeDebug.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 257V44642S;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
@@ -461,7 +616,7 @@
 				CODE_SIGN_ENTITLEMENTS = LoxBrige/LoxBrigeRelease.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 257V44642S;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
@@ -510,6 +665,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		031385D12F826AD400C08142 /* Build configuration list for PBXNativeTarget "LoxBridgeWatch Watch App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				031385D22F826AD400C08142 /* Debug */,
+				031385D32F826AD400C08142 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		031605C02F71EA6200A1B6EB /* Build configuration list for PBXNativeTarget "LoxBridgeUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

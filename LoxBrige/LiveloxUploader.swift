@@ -163,6 +163,8 @@ actor LiveloxUploader {
                         isSuccess: success,
                         eventName: success ? status.eventName : nil
                     )
+                    // Push updated status to Watch
+                    WatchSessionManager.shared.syncStatus()
                     return
                 }
             } catch AppError.importStatusFailed(let code) where code == 401 {
