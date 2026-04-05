@@ -204,6 +204,21 @@ final class AppViewModel: ObservableObject {
             StorageManager.shared.markProcessed(workoutUUID: workoutUUID)
             AppLogger.workout.info("Simulated workout injected: \(metadata.gpxFilePath)")
 
+            // Send GPS points to Watch — simulateWorkout() bypasses WorkoutProcessor
+            // so we must call sendWithPoints() here explicitly.
+            let watchPoints = locations.map { [$0.coordinate.latitude, $0.coordinate.longitude] }
+            let watchPayload = WatchRoutePayload(
+                workoutUUID: workoutUUID.uuidString,
+                status: "Saved",
+                distanceKm: simStats.distanceKm,
+                durationSeconds: simStats.durationSeconds,
+                activityTypeName: simStats.activityTypeName,
+                locationName: nil,
+                createdAt: workoutStart.timeIntervalSince1970,
+                points: watchPoints
+            )
+            WatchSessionManager.shared.sendWithPoints(payload: watchPayload)
+
             if OAuthManager.shared.hasTokens {
                 await NotificationManager.shared.scheduleAutoUploadStarted()
                 do {
