@@ -5,8 +5,12 @@ import SwiftUI
 ///   ◎  two concentric circles at the finish
 ///
 /// Both symbols are inscribed in a circle of radius R so they appear the same visual size.
+/// Supports pinch-to-zoom; double-tap resets to fit.
 struct RouteTrackView: View {
     let points: [[Double]]
+
+    @State private var currentScale: CGFloat = 1.0
+    @State private var baseScale:    CGFloat = 1.0
 
     var body: some View {
         Canvas { context, size in
@@ -14,12 +18,11 @@ struct RouteTrackView: View {
             let cg = normalized(points: points, in: size)
             let n  = cg.count
 
-            // Symbol geometry — both symbols fit in a circle of radius R.
-            let R:   CGFloat = 9   // circumradius of start △  =  outer radius of finish ◎
-            let r1:  CGFloat = 5   // inner radius of finish ◎
-            let gap: CGFloat = R + 2  // track clearance from symbol centre
+            let R:   CGFloat = 9
+            let r1:  CGFloat = 5
+            let gap: CGFloat = R + 2
 
-            // MARK: Track — drawn with a small gap at start and finish
+            // MARK: Track
             let d0 = unit(cg[0], cg[1])
             let dN = unit(cg[n - 2], cg[n - 1])
             var track = Path()
@@ -29,7 +32,7 @@ struct RouteTrackView: View {
             context.stroke(track, with: .color(.purple),
                            style: StrokeStyle(lineWidth: 2, lineJoin: .round))
 
-            // MARK: Start — hollow equilateral △, apex pointing toward direction of travel
+            // MARK: Start △
             let s = cg[0]
             let a = atan2(cg[1].y - cg[0].y, cg[1].x - cg[0].x)
             var tri = Path()
@@ -39,12 +42,28 @@ struct RouteTrackView: View {
             tri.closeSubpath()
             context.stroke(tri, with: .color(.purple), lineWidth: 1.5)
 
-            // MARK: Finish — two concentric circles (◎)
+            // MARK: Finish ◎
             let f = cg[n - 1]
             for r in [r1, R] {
                 context.stroke(
                     Path(ellipseIn: CGRect(x: f.x - r, y: f.y - r, width: r * 2, height: r * 2)),
                     with: .color(.purple), lineWidth: 1.5)
+            }
+        }
+        .scaleEffect(currentScale)
+        .gesture(
+            MagnificationGesture()
+                .onChanged { value in
+                    currentScale = max(1.0, min(baseScale * value, 8.0))
+                }
+                .onEnded { value in
+                    baseScale = currentScale
+                }
+        )
+        .onTapGesture(count: 2) {
+            withAnimation(.spring(duration: 0.3)) {
+                currentScale = 1.0
+                baseScale    = 1.0
             }
         }
     }
@@ -64,11 +83,6 @@ struct RouteTrackView: View {
 
     // MARK: - Coordinate normalisation
 
-    /// Converts [[lat, lon]] geographic pairs to CGPoints scaled and centered
-    /// to fit `size`, preserving aspect ratio with 10% padding on each edge.
-    ///
-    /// Uses a simple equirectangular projection with cosine-latitude correction
-    /// so tracks in Scandinavia (~60° N) aren't stretched east-west.
     private func normalized(points: [[Double]], in size: CGSize) -> [CGPoint] {
         let lats = points.map { $0[0] }
         let lons = points.map { $0[1] }
@@ -83,23 +97,22 @@ struct RouteTrackView: View {
             return points.map { _ in CGPoint(x: size.width / 2, y: size.height / 2) }
         }
 
-        let midLat = (minLat + maxLat) / 2.0
-        let cosLat = cos(midLat * .pi / 180.0)
+        let midLat  = (minLat + maxLat) / 2.0
+        let cosLat  = cos(midLat * .pi / 180.0)
 
         let effectiveLatSpan = max(latSpan, 1e-9)
         let effectiveLonSpan = max(lonSpan * cosLat, 1e-9)
 
-        let padding = 0.10
-        let drawW = size.width  * (1 - 2 * padding)
-        let drawH = size.height * (1 - 2 * padding)
-
-        let scale = min(drawW / CGFloat(effectiveLonSpan),
-                        drawH / CGFloat(effectiveLatSpan))
+        let padding  = 0.10
+        let drawW    = size.width  * (1 - 2 * padding)
+        let drawH    = size.height * (1 - 2 * padding)
+        let scale    = min(drawW / CGFloat(effectiveLonSpan),
+                           drawH / CGFloat(effectiveLatSpan))
 
         let renderedW = CGFloat(effectiveLonSpan) * scale
         let renderedH = CGFloat(effectiveLatSpan) * scale
-        let offsetX = (size.width  - renderedW) / 2
-        let offsetY = (size.height - renderedH) / 2
+        let offsetX   = (size.width  - renderedW) / 2
+        let offsetY   = (size.height - renderedH) / 2
 
         return points.map { pair in
             let lat = pair[0], lon = pair[1]

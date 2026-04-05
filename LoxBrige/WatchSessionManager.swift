@@ -56,6 +56,11 @@ final class WatchSessionManager: NSObject, WCSessionDelegate {
         pushToWatch(updated)
     }
 
+    /// Returns the cached payload for a given workout UUID, or nil if not in cache.
+    func cachedPayload(for workoutUUID: UUID) -> WatchRoutePayload? {
+        loadCachedPayloads().first { $0.workoutUUID == workoutUUID.uuidString }
+    }
+
     // MARK: - Private helpers
 
     private func pushToWatch(_ payloads: [WatchRoutePayload]) {

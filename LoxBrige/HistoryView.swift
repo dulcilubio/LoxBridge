@@ -34,20 +34,22 @@ struct HistoryView: View {
                 } else {
                     List {
                         ForEach(model.recentRoutes, id: \.workoutUUID) { route in
-                            RouteRow(
-                                route: route,
-                                dateFormatter: Self.dateFormatter,
-                                onUpload: route.uploaded ? nil : {
-                                    Task {
-                                        do {
-                                            try await LiveloxUploader.shared.upload(workoutUUID: route.workoutUUID)
-                                            await model.refreshStatus()
-                                        } catch {
-                                            model.lastError = error.localizedDescription
+                            NavigationLink(destination: RouteDetailView(route: route)) {
+                                RouteRow(
+                                    route: route,
+                                    dateFormatter: Self.dateFormatter,
+                                    onUpload: route.uploaded ? nil : {
+                                        Task {
+                                            do {
+                                                try await LiveloxUploader.shared.upload(workoutUUID: route.workoutUUID)
+                                                await model.refreshStatus()
+                                            } catch {
+                                                model.lastError = error.localizedDescription
+                                            }
                                         }
                                     }
-                                }
-                            )
+                                )
+                            }
                             // Leading swipe → share GPX file
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                 if let gpxURL = route.gpxFileURL {
@@ -229,13 +231,7 @@ private struct RouteRow: View {
                         .foregroundStyle(statusColor)
                 }
 
-                if let liveloxURL = route.liveloxURL,
-                   let url = URL(string: liveloxURL) {
-                    Link("View on Livelox →", destination: url)
-                        .font(.caption2)
-                }
-
-                // Action buttons — upload/retry only; GPX sharing via left swipe
+                // Action buttons — upload/retry only; GPX sharing via left swipe, Livelox via row tap
                 if let onUpload, !route.uploaded {
                     Button("Upload to Livelox") { onUpload() }
                         .font(.caption2)
@@ -310,7 +306,8 @@ private struct LegendView: View {
                     LegendRow(icon: "gauge.with.dots.needle.33percent",color: .primary, label: "Pace",          detail: "Average pace in minutes per kilometre")
                     LegendRow(icon: "location.fill",                   color: .primary, label: "Location",      detail: "Area name based on GPS start point")
                 }
-                Section("Gestures") {
+                Section("Gestures & navigation") {
+                    LegendRow(icon: "hand.tap", color: .primary, label: "Tap row", detail: "Open track map and full details")
                     LegendRow(icon: "arrow.left", color: .primary, label: "Swipe left", detail: "Delete route from this device")
                     LegendRow(icon: "arrow.right", color: .primary, label: "Swipe right", detail: "Share GPX file")
                 }
