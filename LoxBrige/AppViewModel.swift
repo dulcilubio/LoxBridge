@@ -136,6 +136,7 @@ final class AppViewModel: ObservableObject {
     /// registry so previously detected workouts are not re-queued.
     func deleteAllRoutes() async {
         StorageManager.shared.deleteAllRouteFiles()
+        WatchSessionManager.shared.syncStatus()
         await refreshStatus()
     }
 
@@ -145,6 +146,7 @@ final class AppViewModel: ObservableObject {
             guard index < routes.count else { continue }
             StorageManager.shared.deleteRoute(workoutUUID: routes[index].workoutUUID)
         }
+        WatchSessionManager.shared.syncStatus()
         await refreshStatus()
     }
 

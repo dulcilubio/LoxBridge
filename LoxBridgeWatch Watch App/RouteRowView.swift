@@ -28,12 +28,24 @@ struct RouteRowView: View {
         .padding(.vertical, 2)
     }
 
+    private var dateString: String? {
+        guard let ts = route.createdAt else { return nil }
+        let date = Date(timeIntervalSince1970: ts)
+        let cal = Calendar.current
+        let formatter = DateFormatter()
+        formatter.dateFormat = cal.isDateInToday(date) ? "HH:mm"
+            : cal.isDate(date, equalTo: .now, toGranularity: .year) ? "d MMM HH:mm"
+            : "d MMM yyyy"
+        return formatter.string(from: date)
+    }
+
     private var title: String {
         route.locationName ?? route.activityTypeName ?? "Route"
     }
 
     private var subtitle: String {
         [
+            dateString,
             route.distanceKm.map { String(format: "%.1f km", $0) },
             route.durationSeconds.map { formatDuration($0) }
         ]

@@ -67,7 +67,6 @@ final class WatchSessionManager: NSObject, WCSessionDelegate {
 
     private func pushToWatch(_ payloads: [WatchRoutePayload]) {
         guard WCSession.default.activationState == .activated else { return }
-        guard WCSession.default.isWatchAppInstalled else { return }
         guard let jsonData = try? JSONEncoder().encode(payloads),
               let jsonObject = try? JSONSerialization.jsonObject(with: jsonData) as? [Any] else {
             AppLogger.upload.error("WatchSessionManager: failed to encode payloads")
