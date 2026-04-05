@@ -34,7 +34,7 @@ struct RouteTrackView: View {
             triangle.addLine(to: CGPoint(x: start.x - side / 2, y: start.y + h / 3))
             triangle.addLine(to: CGPoint(x: start.x + side / 2, y: start.y + h / 3))
             triangle.closeSubpath()
-            context.fill(triangle, with: .color(.purple))
+            context.stroke(triangle, with: .color(.purple), lineWidth: 1.5)
 
             // MARK: Finish — double circle (◎)
             let finish = cgPoints[cgPoints.count - 1]
