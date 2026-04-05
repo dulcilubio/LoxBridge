@@ -29,13 +29,18 @@ struct RouteTrackView: View {
             let r1:  CGFloat = 5    // inner radius of ◎
             let gap: CGFloat = R * 2 + 2
 
-            let d0 = unit(cg[0], cg[1])
-            let dN = unit(cg[n - 2], cg[n - 1])
+            // MARK: Track — skip segments whose endpoints fall inside the symbol gap zone
+            // This handles any track shape, including loops where start ≈ finish.
+            func nearSymbol(_ p: CGPoint) -> Bool {
+                func sq(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
+                    (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)
+                }
+                return sq(p, cg[0]) < gap * gap || sq(p, cg[n - 1]) < gap * gap
+            }
 
-            // MARK: Track — one segment per pair of points so each can carry its own colour
             for i in 0 ..< (n - 1) {
-                let ptA = i == 0     ? add(cg[0],     d0,  gap) : cg[i]
-                let ptB = i == n - 2 ? add(cg[n - 1], dN, -gap) : cg[i + 1]
+                let ptA = cg[i], ptB = cg[i + 1]
+                guard !nearSymbol(ptA) && !nearSymbol(ptB) else { continue }
 
                 let color: Color
                 if let sp = speeds, i < sp.count {
@@ -80,17 +85,6 @@ struct RouteTrackView: View {
     }
 
     // MARK: - Vector helpers
-
-    private func unit(_ a: CGPoint, _ b: CGPoint) -> CGPoint {
-        let dx = b.x - a.x, dy = b.y - a.y
-        let len = hypot(dx, dy)
-        guard len > 1e-6 else { return CGPoint(x: 1, y: 0) }
-        return CGPoint(x: dx / len, y: dy / len)
-    }
-
-    private func add(_ p: CGPoint, _ d: CGPoint, _ dist: CGFloat) -> CGPoint {
-        CGPoint(x: p.x + d.x * dist, y: p.y + d.y * dist)
-    }
 
     // MARK: - Coordinate normalisation
 
