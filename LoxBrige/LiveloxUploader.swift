@@ -96,6 +96,25 @@ actor LiveloxUploader {
         }
     }
 
+    /// Re-polls the Livelox import status for any route that was uploaded but whose
+    /// polling was cut short (e.g. iOS suspended the app before it completed).
+    /// Called on every foreground launch so the user always eventually gets a notification.
+    func pollPendingStatuses() async {
+        guard oauthManager.hasTokens else { return }
+        let pending = storageManager.routesNeedingStatusPoll()
+        guard !pending.isEmpty else { return }
+        AppLogger.upload.info("Re-polling import status for \(pending.count) route(s)")
+        for route in pending {
+            // No initial delay — these routes were uploaded in a previous session,
+            // Livelox has had plenty of time to process them.
+            await pollImportStatus(
+                importId: route.workoutUUID.uuidString,
+                workoutUUID: route.workoutUUID,
+                initialDelay: false
+            )
+        }
+    }
+
     // MARK: - Private helpers
 
     private func makeURL(path: String) -> URL? {
@@ -111,13 +130,17 @@ actor LiveloxUploader {
         return dictionary.normalizedStringValues().firstValue(forKeys: ["importId", "id", "import_id", "routeId"])
     }
 
-    private func pollImportStatus(importId: String, workoutUUID: UUID) async {
+    /// - Parameter initialDelay: Pass `false` when re-polling a previously uploaded
+    ///   route so that stale routes are checked immediately without an artificial wait.
+    private func pollImportStatus(importId: String, workoutUUID: UUID, initialDelay: Bool = true) async {
         let maxAttempts = 6
         let delaySeconds: UInt64 = 8
 
-        // Livelox processes GPX imports asynchronously — give the backend time
-        // to move the file into Azure Blob Storage before the first status poll.
-        try? await Task.sleep(nanoseconds: 15 * 1_000_000_000)
+        if initialDelay {
+            // Give the Livelox backend a moment to move the freshly-uploaded GPX into
+            // Azure Blob Storage before the first poll. 5 s is enough in practice.
+            try? await Task.sleep(nanoseconds: 5 * 1_000_000_000)
+        }
 
         for attempt in 1...maxAttempts {
             do {
@@ -150,12 +173,9 @@ actor LiveloxUploader {
                 await NotificationManager.shared.scheduleImportStatus(message: display, isSuccess: false)
                 return
             } catch AppError.importStatusFailed(let code) where code == 404 {
-                AppLogger.upload.warning("Poll 404 for \(importId) — route not found on server, stopping")
-                let display = "Still processing on Livelox — check back later"
-                storageManager.updateImportStatus(workoutUUID: workoutUUID, status: display)
-                storageManager.setLastImportStatus(display)
-                await NotificationManager.shared.scheduleImportStatus(message: display, isSuccess: false)
-                return
+                // 404 / BlobNotFound is transient — Livelox is still moving the file
+                // into storage. Log and continue polling rather than giving up.
+                AppLogger.upload.info("Poll 404 for \(importId) — not yet available, retrying (\(attempt)/\(maxAttempts))")
             } catch {
                 AppLogger.upload.error("Import status check failed: \(error.localizedDescription)")
             }

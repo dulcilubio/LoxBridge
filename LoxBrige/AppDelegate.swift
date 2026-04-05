@@ -28,6 +28,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             }
             await NotificationManager.shared.requestAuthorizationIfNeeded()
             await LiveloxUploader.shared.processPendingUploads()
+            // Re-poll status for routes uploaded in a previous session whose
+            // background polling was cut short — sends the notification if missed.
+            await LiveloxUploader.shared.pollPendingStatuses()
         }
 
         return true

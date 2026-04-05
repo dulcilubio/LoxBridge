@@ -103,6 +103,9 @@ final class AppViewModel: ObservableObject {
         }
         // Retry uploads that previously failed due to no network connection.
         await LiveloxUploader.shared.processPendingUploads()
+        // Re-poll status for routes that were uploaded but whose background polling
+        // was cut short by iOS. This ensures the user always gets a notification.
+        await LiveloxUploader.shared.pollPendingStatuses()
     }
 
     func refreshStatus() async {

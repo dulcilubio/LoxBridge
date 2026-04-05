@@ -131,6 +131,25 @@ final class StorageManager {
         queue.sync { loadAllMetadata().filter { !$0.uploaded } }
     }
 
+    /// Routes that have been uploaded but whose Livelox import status has not yet
+    /// reached a terminal state. These should be re-polled when the app comes to
+    /// the foreground so that the user always gets a notification even if background
+    /// polling was cut short by iOS.
+    func routesNeedingStatusPoll() -> [RouteMetadata] {
+        queue.sync {
+            loadAllMetadata().filter { route in
+                guard route.uploaded else { return false }
+                let s = route.importStatus ?? ""
+                // Terminal states — no need to poll further.
+                let terminal = s.contains("On Livelox")
+                    || s.contains("Failed on Livelox")
+                    || s.contains("connection expired")
+                    || s.contains("Missing GPX")
+                return !terminal
+            }
+        }
+    }
+
     func updateImportStatus(
         workoutUUID: UUID,
         status: String,

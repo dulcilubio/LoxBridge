@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UserNotifications
 
 struct SettingsView: View {
     @ObservedObject var model: AppViewModel
@@ -11,6 +12,7 @@ struct SettingsView: View {
 
     @State private var versionTapCount = 0
     @State private var showFireworks = false
+    @State private var notificationsAuthorized: Bool = true
 
     private var liveloxConnected: Bool { model.liveloxStatus == "Connected" }
     private var healthKitOK: Bool { model.healthKitStatus == "Authorized" }
@@ -26,6 +28,27 @@ struct SettingsView: View {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundStyle(.orange)
                             LabeledContent("HealthKit", value: model.healthKitStatus)
+                        }
+                    }
+
+                    // Notification row: only appears when notifications are disabled.
+                    if !notificationsAuthorized {
+                        Button {
+                            if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "bell.slash.fill")
+                                    .foregroundStyle(.orange)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Notifications disabled")
+                                        .foregroundStyle(.primary)
+                                    Text("Tap to enable in iOS Settings — otherwise you won't be notified when a route is on Livelox")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                         }
                     }
 
@@ -122,6 +145,11 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            .task {
+                let settings = await UNUserNotificationCenter.current().notificationSettings()
+                notificationsAuthorized = settings.authorizationStatus == .authorized
+                    || settings.authorizationStatus == .provisional
+            }
             .overlay(alignment: .bottom) {
                 if showFireworks {
                     FireworksView()
