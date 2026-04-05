@@ -34,15 +34,15 @@ final class WatchSessionManager: NSObject, WCSessionDelegate {
     /// StorageManager, preserving existing GPS points from cache.
     func syncStatus() {
         let routes = StorageManager.shared.recentRoutes(limit: 5)
-        var cached = loadCachedPayloads()
+        let cached = loadCachedPayloads()
 
-        for route in routes {
-            let status = watchStatusString(for: route)
-            // Find existing payload to preserve its GPS points
+        // Rebuild strictly from the current route list — no stale entries survive.
+        // Preserve GPS points for routes that are still present.
+        let updated: [WatchRoutePayload] = routes.map { route in
             let existingPoints = cached.first(where: { $0.workoutUUID == route.workoutUUID.uuidString })?.points ?? []
-            let updated = WatchRoutePayload(
+            return WatchRoutePayload(
                 workoutUUID: route.workoutUUID.uuidString,
-                status: status,
+                status: watchStatusString(for: route),
                 distanceKm: route.distanceKm,
                 durationSeconds: route.durationSeconds,
                 activityTypeName: route.activityTypeName,
@@ -50,17 +50,10 @@ final class WatchSessionManager: NSObject, WCSessionDelegate {
                 createdAt: route.createdAt?.timeIntervalSince1970,
                 points: existingPoints
             )
-            cached.removeAll { $0.workoutUUID == route.workoutUUID.uuidString }
-            cached.append(updated)
         }
 
-        // Re-sort by createdAt descending, keep max 5
-        let sorted = cached
-            .sorted { ($0.createdAt ?? 0) > ($1.createdAt ?? 0) }
-            .prefix(5)
-        let trimmed = Array(sorted)
-        saveCachedPayloads(trimmed)
-        pushToWatch(trimmed)
+        saveCachedPayloads(updated)
+        pushToWatch(updated)
     }
 
     // MARK: - Private helpers
