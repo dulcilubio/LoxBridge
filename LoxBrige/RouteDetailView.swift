@@ -98,7 +98,6 @@ struct RouteDetailView: View {
                             .padding(.vertical, 4)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.purple)
                 }
             }
             .padding()

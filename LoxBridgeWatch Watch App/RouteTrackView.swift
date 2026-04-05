@@ -8,6 +8,15 @@ import SwiftUI
 struct RouteTrackView: View {
     let points: [[Double]]
 
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// Moss green — darker on light backgrounds, brighter on dark backgrounds.
+    private var trackColor: Color {
+        colorScheme == .dark
+            ? Color(red: 0.42, green: 0.78, blue: 0.32)
+            : Color(red: 0.18, green: 0.50, blue: 0.12)
+    }
+
     var body: some View {
         Canvas { context, size in
             guard points.count >= 2 else { return }
@@ -15,18 +24,18 @@ struct RouteTrackView: View {
             let n  = cg.count
 
             // Symbol geometry — both symbols fit in a circle of radius R.
-            let R:   CGFloat = 9   // circumradius of start △  =  outer radius of finish ◎
-            let r1:  CGFloat = 5   // inner radius of finish ◎
-            let gap: CGFloat = R + 2  // track clearance from symbol centre
+            let R:   CGFloat = 9    // circumradius of start △  =  outer radius of finish ◎
+            let r1:  CGFloat = 5    // inner radius of finish ◎
+            let gap: CGFloat = R * 2 + 2  // generous clearance so track never enters a symbol
 
-            // MARK: Track — drawn with a small gap at start and finish
+            // MARK: Track — drawn with a gap at start and finish
             let d0 = unit(cg[0], cg[1])
             let dN = unit(cg[n - 2], cg[n - 1])
             var track = Path()
             track.move(to: add(cg[0],     d0,  gap))
             for i in 1 ..< (n - 1) { track.addLine(to: cg[i]) }
             track.addLine(to: add(cg[n - 1], dN, -gap))
-            context.stroke(track, with: .color(.purple),
+            context.stroke(track, with: .color(trackColor),
                            style: StrokeStyle(lineWidth: 2, lineJoin: .round))
 
             // MARK: Start — hollow equilateral △, apex pointing toward direction of travel

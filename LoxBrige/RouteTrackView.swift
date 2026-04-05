@@ -11,6 +11,14 @@ struct RouteTrackView: View {
 
     @State private var currentScale: CGFloat = 1.0
     @State private var baseScale:    CGFloat = 1.0
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// Moss green — darker on light backgrounds, brighter on dark backgrounds.
+    private var trackColor: Color {
+        colorScheme == .dark
+            ? Color(red: 0.42, green: 0.78, blue: 0.32)
+            : Color(red: 0.18, green: 0.50, blue: 0.12)
+    }
 
     var body: some View {
         Canvas { context, size in
@@ -20,7 +28,7 @@ struct RouteTrackView: View {
 
             let R:   CGFloat = 9
             let r1:  CGFloat = 5
-            let gap: CGFloat = R + 2
+            let gap: CGFloat = R * 2 + 2  // generous clearance so track never enters a symbol
 
             // MARK: Track
             let d0 = unit(cg[0], cg[1])
@@ -29,7 +37,7 @@ struct RouteTrackView: View {
             track.move(to: add(cg[0],     d0,  gap))
             for i in 1 ..< (n - 1) { track.addLine(to: cg[i]) }
             track.addLine(to: add(cg[n - 1], dN, -gap))
-            context.stroke(track, with: .color(.purple),
+            context.stroke(track, with: .color(trackColor),
                            style: StrokeStyle(lineWidth: 2, lineJoin: .round))
 
             // MARK: Start △

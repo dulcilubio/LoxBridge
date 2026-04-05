@@ -36,7 +36,7 @@ struct RouteDetailView: View {
                 // Status
                 Text(route.status)
                     .font(.caption2)
-                    .foregroundStyle(.purple)
+                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 4)
         }
