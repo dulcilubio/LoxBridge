@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import WatchConnectivity
 
 /// Manages the WatchConnectivity session on the Watch side.
