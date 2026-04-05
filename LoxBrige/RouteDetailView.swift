@@ -5,9 +5,11 @@ import SwiftUI
 struct RouteDetailView: View {
     let route: RouteMetadata
 
-    private var points: [[Double]] {
-        WatchSessionManager.shared.cachedPayload(for: route.workoutUUID)?.points ?? []
+    private var cachedPayload: WatchRoutePayload? {
+        WatchSessionManager.shared.cachedPayload(for: route.workoutUUID)
     }
+    private var points: [[Double]] { cachedPayload?.points ?? [] }
+    private var speeds: [Double]?  { cachedPayload?.speeds }
 
     var body: some View {
         ScrollView {
@@ -16,7 +18,7 @@ struct RouteDetailView: View {
                 // MARK: Track map
                 Group {
                     if points.count >= 2 {
-                        RouteTrackView(points: points)
+                        RouteTrackView(points: points, speeds: speeds)
                     } else {
                         VStack(spacing: 8) {
                             Image(systemName: "map")
@@ -136,7 +138,7 @@ private struct StatCard: View {
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: icon)
-                .foregroundStyle(.purple)
+                .foregroundStyle(.secondary)
             Text(value)
                 .font(.title3.bold())
                 .minimumScaleFactor(0.7)

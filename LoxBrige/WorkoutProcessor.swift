@@ -90,17 +90,53 @@ final class WorkoutProcessor {
         }
     }
 
-    /// Subsamples a CLLocation array to at most `maxPoints` evenly-spaced entries,
-    /// returning [[lat, lon]] pairs suitable for WatchConnectivity transfer.
-    private func subsamplePoints(locations: [CLLocation], maxPoints: Int) -> [[Double]] {
-        guard locations.count > maxPoints else {
-            return locations.map { [$0.coordinate.latitude, $0.coordinate.longitude] }
+    private struct SubsampledRoute {
+        let points: [[Double]]
+        let speeds: [Double]?
+    }
+
+    /// Subsamples a CLLocation array to at most `maxPoints` evenly-spaced entries.
+    /// Returns both [[lat, lon]] pairs and per-point speeds normalized to 0…1
+    /// (0 = slowest, 1 = fastest on this route). Speeds are nil if unavailable.
+    private func subsample(locations: [CLLocation], maxPoints: Int) -> SubsampledRoute {
+        let sampled: [CLLocation]
+        if locations.count <= maxPoints {
+            sampled = locations
+        } else {
+            let step = Double(locations.count - 1) / Double(maxPoints - 1)
+            sampled = (0..<maxPoints).map { i in
+                let idx = min(Int((Double(i) * step).rounded()), locations.count - 1)
+                return locations[idx]
+            }
         }
-        let stride = Double(locations.count - 1) / Double(maxPoints - 1)
-        return (0..<maxPoints).map { i in
-            let idx = min(Int((Double(i) * stride).rounded()), locations.count - 1)
-            return [locations[idx].coordinate.latitude, locations[idx].coordinate.longitude]
+
+        let points = sampled.map { [$0.coordinate.latitude, $0.coordinate.longitude] }
+
+        // Build raw speeds (m/s): prefer CLLocation.speed; fall back to distance/time delta.
+        var raw: [Double] = sampled.enumerated().map { i, loc in
+            if loc.speed >= 0 { return loc.speed }
+            if i > 0 {
+                let dt = loc.timestamp.timeIntervalSince(sampled[i - 1].timestamp)
+                let dist = loc.distance(from: sampled[i - 1])
+                if dt > 0.3 { return dist / dt }
+            }
+            return -1.0
         }
+        // Fill gaps by propagating neighbours.
+        for i in 1..<raw.count     { if raw[i] < 0 { raw[i] = raw[i - 1] } }
+        for i in stride(from: raw.count - 2, through: 0, by: -1) { if raw[i] < 0 { raw[i] = raw[i + 1] } }
+
+        let valid = raw.filter { $0 >= 0 }
+        guard valid.count > 1,
+              let lo = valid.min(), let hi = valid.max(), hi - lo > 0.1
+        else {
+            // No meaningful variance — return constant mid-point (shows uniform yellow)
+            let uniform = Array(repeating: 0.5, count: sampled.count)
+            return SubsampledRoute(points: points, speeds: uniform)
+        }
+
+        let normalized = raw.map { max(0.0, min(1.0, ($0 - lo) / (hi - lo))) }
+        return SubsampledRoute(points: points, speeds: normalized)
     }
 
     /// Returns the total route distance in kilometres by summing consecutive point distances.
@@ -165,7 +201,7 @@ final class WorkoutProcessor {
         NotificationCenter.default.post(name: .routeListChanged, object: nil)
 
         // Send route to Watch app — must happen while locations array is still in scope.
-        let watchPoints = subsamplePoints(locations: locations, maxPoints: 200)
+        let sub = subsample(locations: locations, maxPoints: 200)
         let watchPayload = WatchRoutePayload(
             workoutUUID: workoutUUID.uuidString,
             status: "Saved",
@@ -174,7 +210,8 @@ final class WorkoutProcessor {
             activityTypeName: stats.activityTypeName,
             locationName: nil,
             createdAt: stats.workoutDate?.timeIntervalSince1970,
-            points: watchPoints
+            points: sub.points,
+            speeds: sub.speeds
         )
         WatchSessionManager.shared.sendWithPoints(payload: watchPayload)
 

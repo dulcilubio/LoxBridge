@@ -39,7 +39,7 @@ final class WatchSessionManager: NSObject, WCSessionDelegate {
         // Rebuild strictly from the current route list — no stale entries survive.
         // Preserve GPS points for routes that are still present.
         let updated: [WatchRoutePayload] = routes.map { route in
-            let existingPoints = cached.first(where: { $0.workoutUUID == route.workoutUUID.uuidString })?.points ?? []
+            let existing = cached.first(where: { $0.workoutUUID == route.workoutUUID.uuidString })
             return WatchRoutePayload(
                 workoutUUID: route.workoutUUID.uuidString,
                 status: watchStatusString(for: route),
@@ -48,7 +48,8 @@ final class WatchSessionManager: NSObject, WCSessionDelegate {
                 activityTypeName: route.activityTypeName,
                 locationName: route.locationName,
                 createdAt: route.createdAt?.timeIntervalSince1970,
-                points: existingPoints
+                points: existing?.points ?? [],
+                speeds: existing?.speeds
             )
         }
 

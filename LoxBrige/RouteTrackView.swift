@@ -1,20 +1,22 @@
 import SwiftUI
 
-/// Draws a GPS track as a purple line with orienteering-style markers:
-///   △  hollow equilateral triangle at the start, apex rotated toward direction of travel
-///   ◎  two concentric circles at the finish
+/// Draws a GPS track with orienteering-style markers:
+///   △  hollow equilateral triangle at start, apex rotated toward direction of travel
+///   ◎  two concentric circles at finish
 ///
-/// Both symbols are inscribed in a circle of radius R so they appear the same visual size.
-/// Supports pinch-to-zoom; double-tap resets to fit.
+/// Track segments are coloured by relative speed: red (slow) → yellow → green (fast).
+/// Falls back to adaptive moss green when speed data is unavailable.
+/// Supports pinch-to-zoom (1×–8×); double-tap resets.
 struct RouteTrackView: View {
     let points: [[Double]]
+    let speeds: [Double]?   // normalized 0…1, same count as points; nil = use fallback colour
 
     @State private var currentScale: CGFloat = 1.0
     @State private var baseScale:    CGFloat = 1.0
     @Environment(\.colorScheme) private var colorScheme
 
-    /// Moss green — darker on light backgrounds, brighter on dark backgrounds.
-    private var trackColor: Color {
+    /// Moss green fallback for when speed data is absent.
+    private var fallbackColor: Color {
         colorScheme == .dark
             ? Color(red: 0.42, green: 0.78, blue: 0.32)
             : Color(red: 0.18, green: 0.50, blue: 0.12)
@@ -28,17 +30,30 @@ struct RouteTrackView: View {
 
             let R:   CGFloat = 9
             let r1:  CGFloat = 5
-            let gap: CGFloat = R * 2 + 2  // generous clearance so track never enters a symbol
+            let gap: CGFloat = R * 2 + 2
 
-            // MARK: Track
             let d0 = unit(cg[0], cg[1])
             let dN = unit(cg[n - 2], cg[n - 1])
-            var track = Path()
-            track.move(to: add(cg[0],     d0,  gap))
-            for i in 1 ..< (n - 1) { track.addLine(to: cg[i]) }
-            track.addLine(to: add(cg[n - 1], dN, -gap))
-            context.stroke(track, with: .color(trackColor),
-                           style: StrokeStyle(lineWidth: 2, lineJoin: .round))
+
+            // MARK: Track — one segment per pair of points for per-segment colour
+            for i in 0 ..< (n - 1) {
+                let ptA = i == 0     ? add(cg[0],     d0,  gap) : cg[i]
+                let ptB = i == n - 2 ? add(cg[n - 1], dN, -gap) : cg[i + 1]
+
+                let color: Color
+                if let sp = speeds, i < sp.count {
+                    let t = (sp[i] + sp[min(i + 1, sp.count - 1)]) / 2.0
+                    color = speedColor(t)
+                } else {
+                    color = fallbackColor
+                }
+
+                var seg = Path()
+                seg.move(to: ptA)
+                seg.addLine(to: ptB)
+                context.stroke(seg, with: .color(color),
+                               style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+            }
 
             // MARK: Start △
             let s = cg[0]
@@ -64,7 +79,7 @@ struct RouteTrackView: View {
                 .onChanged { value in
                     currentScale = max(1.0, min(baseScale * value, 8.0))
                 }
-                .onEnded { value in
+                .onEnded { _ in
                     baseScale = currentScale
                 }
         )
@@ -74,6 +89,12 @@ struct RouteTrackView: View {
                 baseScale    = 1.0
             }
         }
+    }
+
+    // MARK: - Colour helper
+
+    private func speedColor(_ t: Double) -> Color {
+        Color(hue: t / 3.0, saturation: 0.95, brightness: 0.82)
     }
 
     // MARK: - Vector helpers
@@ -98,18 +119,15 @@ struct RouteTrackView: View {
         guard let minLat = lats.min(), let maxLat = lats.max(),
               let minLon = lons.min(), let maxLon = lons.max() else { return [] }
 
-        let latSpan = maxLat - minLat
-        let lonSpan = maxLon - minLon
-
-        guard latSpan > 0 || lonSpan > 0 else {
+        guard maxLat - minLat > 0 || maxLon - minLon > 0 else {
             return points.map { _ in CGPoint(x: size.width / 2, y: size.height / 2) }
         }
 
         let midLat  = (minLat + maxLat) / 2.0
         let cosLat  = cos(midLat * .pi / 180.0)
 
-        let effectiveLatSpan = max(latSpan, 1e-9)
-        let effectiveLonSpan = max(lonSpan * cosLat, 1e-9)
+        let effectiveLatSpan = max(maxLat - minLat, 1e-9)
+        let effectiveLonSpan = max((maxLon - minLon) * cosLat, 1e-9)
 
         let padding  = 0.10
         let drawW    = size.width  * (1 - 2 * padding)
@@ -123,10 +141,10 @@ struct RouteTrackView: View {
         let offsetY   = (size.height - renderedH) / 2
 
         return points.map { pair in
-            let lat = pair[0], lon = pair[1]
-            let x = offsetX + CGFloat((lon - minLon) * cosLat) * scale
-            let y = offsetY + CGFloat(maxLat - lat) * scale
-            return CGPoint(x: x, y: y)
+            CGPoint(
+                x: offsetX + CGFloat((pair[1] - minLon) * cosLat) * scale,
+                y: offsetY + CGFloat(maxLat - pair[0]) * scale
+            )
         }
     }
 }

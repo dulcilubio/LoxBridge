@@ -13,4 +13,5 @@ struct WatchRoutePayload: Codable, Identifiable {
     let locationName: String?
     let createdAt: TimeInterval?    // Date.timeIntervalSince1970
     let points: [[Double]]          // [[lat, lon], …] up to 200 points
+    let speeds: [Double]?           // normalized 0 (slow) … 1 (fast), same count as points
 }

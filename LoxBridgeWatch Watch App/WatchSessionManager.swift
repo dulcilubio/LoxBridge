@@ -11,6 +11,10 @@ final class WatchSessionManager: NSObject, ObservableObject, WCSessionDelegate {
 
     @Published var routes: [WatchRoutePayload] = []
 
+    /// Set to the first route that newly reaches "On Livelox" status.
+    /// ContentView observes this to show an in-app alert.
+    @Published var newlyCompletedRoute: WatchRoutePayload? = nil
+
     private let payloadsKey = "watchRoutePayloads"
 
     private override init() {
@@ -37,8 +41,16 @@ final class WatchSessionManager: NSObject, ObservableObject, WCSessionDelegate {
         else { return }
 
         Task { @MainActor in
+            // Detect routes that are newly "On Livelox" (weren't before this update).
+            let previousOnLivelox = Set(self.routes.filter { $0.status == "On Livelox" }.map { $0.workoutUUID })
+            let newlyDone = decoded.first {
+                $0.status == "On Livelox" && !previousOnLivelox.contains($0.workoutUUID)
+            }
             self.routes = decoded
             self.saveCachedPayloads(decoded)
+            if let route = newlyDone {
+                self.newlyCompletedRoute = route
+            }
         }
     }
 

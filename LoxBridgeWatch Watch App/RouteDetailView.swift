@@ -10,7 +10,7 @@ struct RouteDetailView: View {
                 // Track visualization or placeholder
                 Group {
                     if route.points.count >= 2 {
-                        RouteTrackView(points: route.points)
+                        RouteTrackView(points: route.points, speeds: route.speeds)
                     } else {
                         Image(systemName: "map")
                             .font(.largeTitle)

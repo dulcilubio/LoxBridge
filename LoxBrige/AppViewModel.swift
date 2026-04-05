@@ -217,7 +217,8 @@ final class AppViewModel: ObservableObject {
                 activityTypeName: simStats.activityTypeName,
                 locationName: nil,
                 createdAt: workoutStart.timeIntervalSince1970,
-                points: watchPoints
+                points: watchPoints,
+                speeds: nil
             )
             WatchSessionManager.shared.sendWithPoints(payload: watchPayload)
 
