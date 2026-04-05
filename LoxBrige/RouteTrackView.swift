@@ -11,8 +11,6 @@ struct RouteTrackView: View {
     let points: [[Double]]
     let speeds: [Double]?   // normalized 0…1, same count as points; nil = use fallback colour
 
-    @State private var currentScale: CGFloat = 1.0
-    @State private var baseScale:    CGFloat = 1.0
     @Environment(\.colorScheme) private var colorScheme
 
     /// Moss green fallback for when speed data is absent.
@@ -75,22 +73,6 @@ struct RouteTrackView: View {
                 context.stroke(
                     Path(ellipseIn: CGRect(x: f.x - r, y: f.y - r, width: r * 2, height: r * 2)),
                     with: .color(.purple), lineWidth: 1.5)
-            }
-        }
-        .scaleEffect(currentScale)
-        .gesture(
-            MagnificationGesture()
-                .onChanged { value in
-                    currentScale = max(1.0, min(baseScale * value, 8.0))
-                }
-                .onEnded { _ in
-                    baseScale = currentScale
-                }
-        )
-        .onTapGesture(count: 2) {
-            withAnimation(.spring(duration: 0.3)) {
-                currentScale = 1.0
-                baseScale    = 1.0
             }
         }
     }

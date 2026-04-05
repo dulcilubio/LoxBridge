@@ -2,16 +2,13 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var store: WatchSessionManager
-    @State private var showWorkoutHelp = false
 
     var body: some View {
         NavigationStack {
             List {
                 // MARK: Start Workout shortcut
                 Section {
-                    Button {
-                        showWorkoutHelp = true
-                    } label: {
+                    NavigationLink(destination: WorkoutView()) {
                         Label("Start Workout", systemImage: "figure.run")
                             .foregroundStyle(.green)
                     }
@@ -33,10 +30,6 @@ struct ContentView: View {
             }
             .navigationTitle("LoxBridge")
         }
-        // MARK: How-to sheet
-        .sheet(isPresented: $showWorkoutHelp) {
-            WorkoutHelpView()
-        }
         // MARK: In-app alert when a route reaches Livelox
         .alert("Route on Livelox! 🎉", isPresented: Binding(
             get:  { store.newlyCompletedRoute != nil },
@@ -48,35 +41,6 @@ struct ContentView: View {
                 let name = r.locationName ?? r.activityTypeName ?? "Your route"
                 Text("\(name) has been imported to Livelox.")
             }
-        }
-    }
-}
-
-// MARK: - Workout instructions sheet
-
-private struct WorkoutHelpView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                Image(systemName: "figure.run.circle")
-                    .font(.system(size: 44))
-                    .foregroundStyle(.green)
-
-                Text("How to record a route")
-                    .font(.headline)
-                    .multilineTextAlignment(.center)
-
-                Text("Open the **Workout** app on your Watch and start an **Outdoor Run** (or any outdoor activity).\n\nLoxBridge will automatically upload the route to Livelox when you're done.")
-                    .font(.caption)
-                    .multilineTextAlignment(.center)
-
-                Button("OK") { dismiss() }
-                    .buttonStyle(.bordered)
-                    .padding(.top, 4)
-            }
-            .padding()
         }
     }
 }
