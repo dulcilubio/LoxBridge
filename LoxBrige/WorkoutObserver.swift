@@ -59,13 +59,22 @@ final class WorkoutObserver {
 
     // MARK: - Private
 
-    /// Fetches the 20 most recent workouts from HealthKit, skips any that have
-    /// already been processed, and runs the full pipeline on each remaining one.
-    ///
-    /// Using the 20 most recent instead of limit:1 ensures that workouts recorded
-    /// while the phone was offline (or whose GPS route had not yet synced) are
-    /// all retried the next time the observer fires or the app comes to the foreground.
+    /// Guards against the same scan running more than once at a time.
+    /// Three callers (AppDelegate, scenePhase observer, HKObserverQuery) can all
+    /// fire within milliseconds of each other at app launch — this flag lets the
+    /// first one through and silently skips the rest until it finishes.
+    private var isScanning = false
+
+    /// Fetches the 20 most recent workouts from HealthKit (last 90 days), skips any
+    /// that have already been processed, and runs the full pipeline on each remaining one.
     private func processAllUnprocessedWorkouts() async {
+        guard !isScanning else {
+            AppLogger.workout.info("Scan already in progress, skipping")
+            return
+        }
+        isScanning = true
+        defer { isScanning = false }
+
         do {
             let workouts = try await fetchRecentWorkouts(limit: 20)
             let unprocessed = workouts.filter {
@@ -88,10 +97,16 @@ final class WorkoutObserver {
         }
     }
 
+    /// Fetches up to `limit` workouts from the last 90 days, sorted newest-first.
+    /// The 90-day window avoids scanning all-time HealthKit history, which can
+    /// include hundreds of old Apple Fitness workouts that will never have a
+    /// LoxBridge-recorded GPS route attached to them.
     private func fetchRecentWorkouts(limit: Int) async throws -> [HKWorkout] {
-        try await withCheckedThrowingContinuation { continuation in
+        let since = Date().addingTimeInterval(-90 * 24 * 3600)
+        let predicate = HKQuery.predicateForSamples(withStart: since, end: nil, options: .strictStartDate)
+        return try await withCheckedThrowingContinuation { continuation in
             let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
-            let query = HKSampleQuery(sampleType: workoutType, predicate: nil, limit: limit, sortDescriptors: [sort]) { _, samples, error in
+            let query = HKSampleQuery(sampleType: workoutType, predicate: predicate, limit: limit, sortDescriptors: [sort]) { _, samples, error in
                 if let error {
                     continuation.resume(throwing: error)
                     return

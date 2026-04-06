@@ -5,6 +5,7 @@ import SwiftUI
 struct WorkoutView: View {
     @StateObject private var wm = WorkoutManager.shared
     @Environment(\.dismiss) private var dismiss
+    @State private var showEndConfirmation = false
 
     var body: some View {
         Group {
@@ -30,6 +31,10 @@ struct WorkoutView: View {
         } message: {
             Text(wm.errorMessage ?? "")
         }
+        .confirmationDialog("Träningspass pausat", isPresented: $showEndConfirmation) {
+            Button("Fortsätt") { wm.togglePause() }
+            Button("Avsluta", role: .destructive) { Task { await wm.stop() } }
+        }
     }
 
     // MARK: - Idle
@@ -39,7 +44,7 @@ struct WorkoutView: View {
             Image(systemName: "figure.run")
                 .font(.system(size: 44))
                 .foregroundStyle(.green)
-            Text("Outdoor Run")
+            Text("Orienteering!")
                 .font(.headline)
             Button("Start") {
                 Task { await wm.start() }
@@ -65,30 +70,28 @@ struct WorkoutView: View {
                 .foregroundStyle(.secondary)
                 .opacity(wm.state == .paused ? 0.45 : 1.0)
 
+            Text(formattedPace)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(.secondary)
+                .opacity(wm.state == .paused ? 0.45 : 1.0)
+
             Spacer(minLength: 0)
 
-            HStack(spacing: 16) {
-                // Pause / Resume
-                Button {
+            // Single button: tap while active → pause.
+            // Tap while paused → show confirmation dialog (Fortsätt / Avsluta).
+            Button {
+                if wm.state == .active {
                     wm.togglePause()
-                } label: {
-                    Image(systemName: wm.state == .active ? "pause.fill" : "play.fill")
-                        .font(.title2)
-                        .frame(maxWidth: .infinity)
+                } else {
+                    showEndConfirmation = true
                 }
-                .buttonStyle(.bordered)
-
-                // Stop
-                Button {
-                    Task { await wm.stop() }
-                } label: {
-                    Image(systemName: "stop.fill")
-                        .font(.title2)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(.red)
+            } label: {
+                Image(systemName: wm.state == .active ? "pause.fill" : "play.fill")
+                    .font(.title2)
+                    .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.borderedProminent)
+            .tint(wm.state == .active ? .orange : .green)
             .padding(.bottom, 4)
         }
         .padding(.horizontal)
@@ -97,32 +100,38 @@ struct WorkoutView: View {
     // MARK: - Finished
 
     private var finishedView: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 40))
-                .foregroundStyle(.green)
+        ScrollView {
+            VStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.green)
 
-            Text(formattedDistance)
-                .font(.title3.bold())
+                Text(formattedDistance)
+                    .font(.title3.bold())
 
-            Text(formattedTime)
-                .foregroundStyle(.secondary)
+                Text(formattedTime)
+                    .foregroundStyle(.secondary)
 
-            Text("Uploading to Livelox…")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-
-            Button("Done") {
-                wm.reset()
-                dismiss()
+                Button("Done") {
+                    wm.reset()
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.top, 4)
             }
-            .buttonStyle(.bordered)
-            .padding(.top, 4)
+            .padding(.horizontal)
         }
-        .padding()
     }
 
     // MARK: - Formatters
+
+    private var formattedPace: String {
+        guard wm.distanceMeters > 50 else { return "--:-- /km" }
+        let secsPerKm = Double(wm.elapsedSeconds) / (wm.distanceMeters / 1000.0)
+        let m = Int(secsPerKm) / 60
+        let s = Int(secsPerKm) % 60
+        return String(format: "%d:%02d /km", m, s)
+    }
 
     private var formattedTime: String {
         let h = wm.elapsedSeconds / 3600

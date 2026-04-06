@@ -1,6 +1,9 @@
 import Combine
 import HealthKit
 import CoreLocation
+import OSLog
+
+private let logger = Logger(subsystem: "se.erikfrick.loxbridge", category: "workout")
 
 /// Manages a single outdoor-running HKWorkoutSession on the Watch.
 ///
@@ -26,6 +29,13 @@ final class WorkoutManager: NSObject, ObservableObject {
     private var locationMgr: CLLocationManager?
     private var displayTimer: Timer?
 
+    /// Set to `true` immediately before CLLocationManager starts (in beginSession),
+    /// and `false` in stop() before stopUpdatingLocation(). This avoids the race
+    /// where location updates arrive before HKWorkoutSession fires its .running
+    /// delegate callback — previously those early points were silently dropped
+    /// because the guard checked `state == .active` which wasn't set yet.
+    private var isRouteRecording = false
+
     private override init() { super.init() }
 
     // MARK: - Public API
@@ -47,6 +57,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     func stop() async {
         guard let session, let builder else { return }
         stopDisplayTimer()
+        isRouteRecording = false
         locationMgr?.stopUpdatingLocation()
 
         let endDate = Date()
@@ -123,6 +134,7 @@ final class WorkoutManager: NSObject, ObservableObject {
             }
         }
 
+        isRouteRecording = true   // must be set before startLocationUpdates()
         startLocationUpdates()
         startDisplayTimer()
     }
@@ -199,8 +211,16 @@ extension WorkoutManager: CLLocationManagerDelegate {
         let accurate = locations.filter { $0.horizontalAccuracy > 0 && $0.horizontalAccuracy < 50 }
         guard !accurate.isEmpty else { return }
         Task { @MainActor [weak self] in
-            guard let self, self.state == .active else { return }
-            self.routeBuilder?.insertRouteData(accurate) { _, _ in }
+            // Use isRouteRecording (set synchronously in beginSession) rather than
+            // state == .active: the HKWorkoutSession .running delegate callback is
+            // async and often arrives after the first location batches, so checking
+            // state would silently drop those early GPS points.
+            guard let self, self.isRouteRecording else { return }
+            self.routeBuilder?.insertRouteData(accurate) { _, err in
+                if let err {
+                    logger.error("insertRouteData failed: \(err.localizedDescription)")
+                }
+            }
         }
     }
 }
