@@ -132,7 +132,6 @@ final class WorkoutManager: NSObject, ObservableObject {
         mgr.delegate = self
         mgr.desiredAccuracy = kCLLocationAccuracyBest
         mgr.distanceFilter  = 5
-        mgr.allowsBackgroundLocationUpdates = true
         mgr.requestWhenInUseAuthorization()
         mgr.startUpdatingLocation()
         locationMgr = mgr
