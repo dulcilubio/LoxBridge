@@ -76,13 +76,19 @@ final class WorkoutManager: NSObject, ObservableObject {
                     else { c.resume(throwing: NSError(domain: "WorkoutManager", code: -1)) }
                 }
             }
-            try? await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
-                routeBuilder?.finishRoute(with: workout, metadata: nil) { _, err in
-                    err != nil ? c.resume(throwing: err!) : c.resume()
+            do {
+                try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
+                    routeBuilder?.finishRoute(with: workout, metadata: nil) { _, err in
+                        err != nil ? c.resume(throwing: err!) : c.resume()
+                    }
                 }
+                logger.info("Route saved successfully")
+            } catch {
+                logger.error("finishRoute failed: \(error.localizedDescription)")
+                // Workout is still saved; only the GPS route is missing.
             }
         } catch {
-            // Workout still finishes; route might just be missing
+            logger.error("stop() failed: \(error.localizedDescription)")
         }
 
         state = .finished
@@ -102,10 +108,14 @@ final class WorkoutManager: NSObject, ObservableObject {
     // MARK: - Private
 
     private func requestAuthorization() async throws {
+        // HKSeriesType.workoutRoute() MUST be in shareTypes — without it,
+        // insertRouteData and finishRoute silently succeed but write nothing,
+        // and the workout has no GPS route in HealthKit.
         let shareTypes: Set<HKSampleType> = [
             .workoutType(),
             HKQuantityType(.distanceWalkingRunning),
             HKQuantityType(.activeEnergyBurned),
+            HKSeriesType.workoutRoute(),
         ]
         try await healthStore.requestAuthorization(toShare: shareTypes, read: shareTypes)
     }

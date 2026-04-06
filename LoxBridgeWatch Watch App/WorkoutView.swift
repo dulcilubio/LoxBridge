@@ -5,7 +5,6 @@ import SwiftUI
 struct WorkoutView: View {
     @StateObject private var wm = WorkoutManager.shared
     @Environment(\.dismiss) private var dismiss
-    @State private var showEndConfirmation = false
 
     var body: some View {
         Group {
@@ -31,10 +30,6 @@ struct WorkoutView: View {
         } message: {
             Text(wm.errorMessage ?? "")
         }
-        .confirmationDialog("Träningspass pausat", isPresented: $showEndConfirmation) {
-            Button("Fortsätt") { wm.togglePause() }
-            Button("Avsluta", role: .destructive) { Task { await wm.stop() } }
-        }
     }
 
     // MARK: - Idle
@@ -57,70 +52,97 @@ struct WorkoutView: View {
     // MARK: - Active / Paused
 
     private var activeView: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 6) {
             Spacer(minLength: 0)
 
             Text(formattedTime)
-                .font(.system(size: 40, weight: .semibold, design: .rounded))
+                .font(.system(size: 36, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .opacity(wm.state == .paused ? 0.45 : 1.0)
 
             Text(formattedDistance)
-                .font(.system(size: 20, weight: .medium))
+                .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(.secondary)
                 .opacity(wm.state == .paused ? 0.45 : 1.0)
 
             Text(formattedPace)
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: 14, weight: .regular))
                 .foregroundStyle(.secondary)
                 .opacity(wm.state == .paused ? 0.45 : 1.0)
 
             Spacer(minLength: 0)
 
-            // Single button: tap while active → pause.
-            // Tap while paused → show confirmation dialog (Fortsätt / Avsluta).
-            Button {
-                if wm.state == .active {
-                    wm.togglePause()
-                } else {
-                    showEndConfirmation = true
+            if wm.state == .active {
+                // Single orange pause button while running
+                Button { wm.togglePause() } label: {
+                    Image(systemName: "pause.fill")
+                        .font(.body)
+                        .frame(maxWidth: .infinity)
                 }
-            } label: {
-                Image(systemName: wm.state == .active ? "pause.fill" : "play.fill")
-                    .font(.title2)
-                    .frame(maxWidth: .infinity)
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+            } else {
+                // Two side-by-side buttons while paused: resume (green) | stop (red)
+                HStack(spacing: 10) {
+                    Button { wm.togglePause() } label: {
+                        Image(systemName: "play.fill")
+                            .font(.body)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
+
+                    Button { Task { await wm.stop() } } label: {
+                        Image(systemName: "stop.fill")
+                            .font(.body)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(wm.state == .active ? .orange : .green)
-            .padding(.bottom, 4)
         }
         .padding(.horizontal)
+        .padding(.bottom, 4)
     }
 
     // MARK: - Finished
 
     private var finishedView: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 40))
-                    .foregroundStyle(.green)
+        VStack(spacing: 8) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 32))
+                .foregroundStyle(.green)
 
-                Text(formattedDistance)
-                    .font(.title3.bold())
+            Text(formattedDistance)
+                .font(.title3.bold())
 
-                Text(formattedTime)
-                    .foregroundStyle(.secondary)
-
-                Button("Done") {
-                    wm.reset()
-                    dismiss()
+            HStack(spacing: 20) {
+                VStack(spacing: 2) {
+                    Text(formattedTime)
+                        .font(.caption.monospacedDigit())
+                    Text("tid")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
                 }
-                .buttonStyle(.borderedProminent)
-                .padding(.top, 4)
+                VStack(spacing: 2) {
+                    Text(formattedPace)
+                        .font(.caption.monospacedDigit())
+                    Text("tempo")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
-            .padding(.horizontal)
+            .foregroundStyle(.secondary)
+
+            Button("Klar") {
+                wm.reset()
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+            .padding(.top, 4)
         }
+        .padding(.horizontal)
     }
 
     // MARK: - Formatters
