@@ -168,6 +168,13 @@ final class HealthKitManager {
         AppLogger.healthKit.info("Workout observer started")
     }
 
+    /// Scans the 20 most recent HealthKit workouts and processes any that have
+    /// not yet been handled. Safe to call on every foreground — already-processed
+    /// workouts are skipped in O(1) via the StorageManager set.
+    func scanForMissedWorkouts() {
+        workoutObserver?.scanForMissedWorkouts()
+    }
+
     func stopWorkoutObserver() {
         guard let workoutObserver else {
             return

@@ -34,7 +34,7 @@ final class WorkoutObserver {
             }
 
             Task {
-                await self?.fetchLatestWorkoutAndProcess()
+                await self?.processAllUnprocessedWorkouts()
                 UIApplication.shared.endBackgroundTask(bgTaskID)
             }
         }
@@ -49,30 +49,56 @@ final class WorkoutObserver {
         }
     }
 
-    private func fetchLatestWorkoutAndProcess() async {
-        do {
-            let workout = try await fetchLatestWorkout()
-            try await WorkoutProcessor.shared.process(workout: workout)
-        } catch {
-            AppLogger.workout.error("Workout processing failed: \(error.localizedDescription)")
+    /// Called on app foreground to catch workouts that were missed while
+    /// the app was suspended (e.g. Watch workouts recorded between observer fires).
+    func scanForMissedWorkouts() {
+        Task {
+            await processAllUnprocessedWorkouts()
         }
     }
 
-    private func fetchLatestWorkout() async throws -> HKWorkout {
+    // MARK: - Private
+
+    /// Fetches the 20 most recent workouts from HealthKit, skips any that have
+    /// already been processed, and runs the full pipeline on each remaining one.
+    ///
+    /// Using the 20 most recent instead of limit:1 ensures that workouts recorded
+    /// while the phone was offline (or whose GPS route had not yet synced) are
+    /// all retried the next time the observer fires or the app comes to the foreground.
+    private func processAllUnprocessedWorkouts() async {
+        do {
+            let workouts = try await fetchRecentWorkouts(limit: 20)
+            let unprocessed = workouts.filter {
+                !StorageManager.shared.isProcessed(workoutUUID: $0.uuid)
+            }
+            guard !unprocessed.isEmpty else {
+                AppLogger.workout.info("No unprocessed workouts found")
+                return
+            }
+            AppLogger.workout.info("Processing \(unprocessed.count) unprocessed workout(s)")
+            for workout in unprocessed {
+                do {
+                    try await WorkoutProcessor.shared.process(workout: workout)
+                } catch {
+                    AppLogger.workout.error("Workout \(workout.uuid.uuidString) failed: \(error.localizedDescription)")
+                }
+            }
+        } catch {
+            AppLogger.workout.error("Failed to fetch workouts: \(error.localizedDescription)")
+        }
+    }
+
+    private func fetchRecentWorkouts(limit: Int) async throws -> [HKWorkout] {
         try await withCheckedThrowingContinuation { continuation in
             let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
-            let query = HKSampleQuery(sampleType: workoutType, predicate: nil, limit: 1, sortDescriptors: [sort]) { _, samples, error in
+            let query = HKSampleQuery(sampleType: workoutType, predicate: nil, limit: limit, sortDescriptors: [sort]) { _, samples, error in
                 if let error {
                     continuation.resume(throwing: error)
                     return
                 }
-                guard let workout = samples?.first as? HKWorkout else {
-                    continuation.resume(throwing: AppError.workoutNotFound)
-                    return
-                }
-                continuation.resume(returning: workout)
+                continuation.resume(returning: (samples as? [HKWorkout]) ?? [])
             }
-            healthStore.execute(query)
+            self.healthStore.execute(query)
         }
     }
 }

@@ -31,6 +31,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             // Re-poll status for routes uploaded in a previous session whose
             // background polling was cut short — sends the notification if missed.
             await LiveloxUploader.shared.pollPendingStatuses()
+            // Scan for workouts that were missed while the app was suspended —
+            // e.g. Watch workouts whose GPS route had not yet synced to iPhone
+            // when the HKObserverQuery first fired.
+            hk.scanForMissedWorkouts()
         }
 
         return true

@@ -12,6 +12,7 @@ struct LoxBrigeApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @AppStorage("onboardingCompleted") private var onboardingCompleted = false
     @StateObject private var appModel = AppViewModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         // Activate WCSession as early as possible so the Watch receives
@@ -25,6 +26,15 @@ struct LoxBrigeApp: App {
                 ContentView(model: appModel)
             } else {
                 OnboardingView(model: appModel)
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            // Re-scan for missed workouts every time the app becomes active.
+            // This catches Watch workouts that synced while the app was suspended.
+            let hk = HealthKitManager.shared
+            if hk.isBackgroundEnabled {
+                hk.scanForMissedWorkouts()
             }
         }
     }
