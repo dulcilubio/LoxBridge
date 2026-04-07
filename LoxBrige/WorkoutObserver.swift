@@ -75,11 +75,6 @@ final class WorkoutObserver {
         isScanning = true
         defer { isScanning = false }
 
-        // Rescue workouts that were previously marked "processed" without a saved
-        // route — typically caused by a prior routeNotFound that was incorrectly
-        // treated as permanent. Safe no-op when nothing needs rescuing.
-        StorageManager.shared.unmarkProcessedWithoutSavedRoute()
-
         do {
             let workouts = try await fetchRecentWorkouts(limit: 20)
             let unprocessed = workouts.filter {

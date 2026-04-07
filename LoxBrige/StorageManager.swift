@@ -187,11 +187,12 @@ final class StorageManager {
                 missing.contains { $0.workoutUUID == entry.workoutUUID }
             }
             saveAllMetadata(metadata)
-
-            var processed = processedWorkoutIDs()
-            let missingIDs = Set(missing.map { $0.workoutUUID.uuidString })
-            processed.removeAll { missingIDs.contains($0) }
-            UserDefaults.standard.set(processed, forKey: processedKey)
+            // NOTE: processedWorkouts is intentionally NOT cleared here.
+            // processedWorkouts means "this HealthKit workout has already been
+            // handled" — it must stay set even if the GPX file is later deleted,
+            // otherwise the workout would be reprocessed and re-uploaded to Livelox.
+            // Only deleteRoute() and deleteAllRoutes() (explicit user actions)
+            // should remove entries from processedWorkouts.
             return missing.count
         }
     }
@@ -237,25 +238,6 @@ final class StorageManager {
             UserDefaults.standard.removeObject(forKey: metadataKey)
             UserDefaults.standard.removeObject(forKey: processedKey)
             UserDefaults.standard.removeObject(forKey: lastImportStatusKey)
-        }
-    }
-
-    /// Removes from the "processed" registry any workout UUIDs that were marked
-    /// processed WITHOUT a corresponding saved route (i.e. they failed with
-    /// "routeNotFound" and were permanently skipped). Those workouts will be picked
-    /// up again on the next foreground scan and retried with the improved extractor.
-    ///
-    /// Safe to call on every launch — it's a no-op when no orphaned entries exist.
-    func unmarkProcessedWithoutSavedRoute() {
-        queue.sync {
-            let savedUUIDs = Set(loadAllMetadata().map { $0.workoutUUID.uuidString })
-            var processed = processedWorkoutIDs()
-            let before = processed.count
-            processed = processed.filter { savedUUIDs.contains($0) }
-            if processed.count != before {
-                UserDefaults.standard.set(processed, forKey: processedKey)
-                AppLogger.workout.info("Unmarked \(before - processed.count) orphaned processed entries for retry")
-            }
         }
     }
 
