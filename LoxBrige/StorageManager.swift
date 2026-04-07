@@ -240,6 +240,25 @@ final class StorageManager {
         }
     }
 
+    /// Removes from the "processed" registry any workout UUIDs that were marked
+    /// processed WITHOUT a corresponding saved route (i.e. they failed with
+    /// "routeNotFound" and were permanently skipped). Those workouts will be picked
+    /// up again on the next foreground scan and retried with the improved extractor.
+    ///
+    /// Safe to call on every launch — it's a no-op when no orphaned entries exist.
+    func unmarkProcessedWithoutSavedRoute() {
+        queue.sync {
+            let savedUUIDs = Set(loadAllMetadata().map { $0.workoutUUID.uuidString })
+            var processed = processedWorkoutIDs()
+            let before = processed.count
+            processed = processed.filter { savedUUIDs.contains($0) }
+            if processed.count != before {
+                UserDefaults.standard.set(processed, forKey: processedKey)
+                AppLogger.workout.info("Unmarked \(before - processed.count) orphaned processed entries for retry")
+            }
+        }
+    }
+
     func setLastImportStatus(_ status: String) {
         queue.sync { UserDefaults.standard.set(status, forKey: lastImportStatusKey) }
     }

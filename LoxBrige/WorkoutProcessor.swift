@@ -165,11 +165,11 @@ final class WorkoutProcessor {
 
         let locations = try await routeExtractor.extractLocations(for: workout)
         guard !locations.isEmpty else {
-            // RouteExtractor already retried (10 + 20 + 30 s). If there is still no
-            // GPS route attached to the workout it will never appear — mark it processed
-            // so we don't keep retrying on every future observer fire.
-            AppLogger.route.info("No route locations after retries, skipping: \(workoutUUID.uuidString)")
-            storageManager.markProcessed(workoutUUID: workoutUUID)
+            // The route wasn't found after all retries. Do NOT mark as processed —
+            // the Watch→iPhone HealthKit sync can take several minutes, and the
+            // foreground scan will retry this workout automatically next time the
+            // app is opened.
+            AppLogger.route.info("No route locations found yet for: \(workoutUUID.uuidString)")
             throw AppError.routeNotFound
         }
 

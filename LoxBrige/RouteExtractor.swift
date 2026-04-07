@@ -7,11 +7,15 @@ final class RouteExtractor {
     private let healthStore = HKHealthStore()
 
     func extractLocations(for workout: HKWorkout) async throws -> [CLLocation] {
-        // Apple Watch saves the workout metadata first; GPS route data is synced separately
-        // and may arrive seconds to minutes later. Retry with increasing delays.
+        // Apple Watch saves the workout first; the GPS route syncs separately and
+        // may take 1–5 minutes to appear on iPhone. We retry with increasing delays.
+        // Two strategies are tried on each attempt:
+        //   1. predicateForObjects(from: workout) — the correct association predicate
+        //   2. time-range predicate                — fallback for routes that exist
+        //      in HealthKit but whose workout association hasn't propagated yet
         var routes: [HKWorkoutRoute] = try await fetchRoutes(for: workout)
         if routes.isEmpty {
-            for delaySecs: UInt64 in [10, 20, 30] {
+            for delaySecs: UInt64 in [15, 30, 60, 120] {
                 AppLogger.route.info("No routes yet, retrying in \(delaySecs)s…")
                 try await Task.sleep(nanoseconds: delaySecs * 1_000_000_000)
                 routes = try await fetchRoutes(for: workout)
@@ -32,19 +36,37 @@ final class RouteExtractor {
         return allLocations.sorted { $0.timestamp < $1.timestamp }
     }
 
+    /// Fetches routes associated with the workout via two strategies:
+    /// 1. `predicateForObjects(from: workout)` — direct association (preferred)
+    /// 2. Time-range overlap fallback — catches routes that are in HealthKit but
+    ///    whose link to the workout hasn't propagated yet after Watch→iPhone sync.
     private func fetchRoutes(for workout: HKWorkout) async throws -> [HKWorkoutRoute] {
+        // Strategy 1: association predicate
+        let associated = try await fetchRoutesByPredicate(
+            HKQuery.predicateForObjects(from: workout)
+        )
+        if !associated.isEmpty { return associated }
+
+        // Strategy 2: time-range fallback — any route that overlaps the workout window
+        let timePredicate = HKQuery.predicateForSamples(
+            withStart: workout.startDate,
+            end: workout.endDate.addingTimeInterval(60), // small buffer for GPS lag
+            options: .strictStartDate
+        )
+        return try await fetchRoutesByPredicate(timePredicate)
+    }
+
+    private func fetchRoutesByPredicate(_ predicate: NSPredicate) async throws -> [HKWorkoutRoute] {
         let routeType = HKSeriesType.workoutRoute()
-        let predicate = HKQuery.predicateForObjects(from: workout)
         return try await withCheckedThrowingContinuation { continuation in
             let query = HKSampleQuery(sampleType: routeType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
                 if let error {
                     continuation.resume(throwing: error)
                     return
                 }
-                let routes = samples as? [HKWorkoutRoute] ?? []
-                continuation.resume(returning: routes)
+                continuation.resume(returning: samples as? [HKWorkoutRoute] ?? [])
             }
-            healthStore.execute(query)
+            self.healthStore.execute(query)
         }
     }
 
