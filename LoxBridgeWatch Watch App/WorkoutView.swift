@@ -121,23 +121,27 @@ struct WorkoutView: View {
                 VStack(spacing: 2) {
                     Text(formattedTime)
                         .font(.caption.monospacedDigit())
-                    Text("tid")
+                    Image(systemName: "clock")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
                 VStack(spacing: 2) {
                     Text(formattedPace)
                         .font(.caption.monospacedDigit())
-                    Text("tempo")
+                    Image(systemName: "gauge.with.dots.needle.33percent")
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
             }
             .foregroundStyle(.secondary)
 
-            Button("Klar") {
+            Button {
                 wm.reset()
                 dismiss()
+            } label: {
+                Image(systemName: "checkmark")
+                    .font(.body.bold())
+                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
             .padding(.top, 4)
