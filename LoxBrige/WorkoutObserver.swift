@@ -97,12 +97,11 @@ final class WorkoutObserver {
         }
     }
 
-    /// Fetches up to `limit` workouts from the last 90 days, sorted newest-first.
-    /// The 90-day window avoids scanning all-time HealthKit history, which can
-    /// include hundreds of old Apple Fitness workouts that will never have a
-    /// LoxBridge-recorded GPS route attached to them.
+    /// Fetches up to `limit` workouts from the install-date anchor onwards, sorted newest-first.
+    /// The anchor is set once on first launch so that new installs and app updates never
+    /// scan historical HealthKit workouts and accidentally re-upload them to Livelox.
     private func fetchRecentWorkouts(limit: Int) async throws -> [HKWorkout] {
-        let since = Date().addingTimeInterval(-90 * 24 * 3600)
+        let since = StorageManager.shared.workoutScanStartDate
         let predicate = HKQuery.predicateForSamples(withStart: since, end: nil, options: .strictStartDate)
         return try await withCheckedThrowingContinuation { continuation in
             let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)

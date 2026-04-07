@@ -204,9 +204,10 @@ final class StorageManager {
             let entry = metadata.remove(at: index)
             saveAllMetadata(metadata)
 
-            var processed = processedWorkoutIDs()
-            processed.removeAll { $0 == workoutUUID.uuidString }
-            UserDefaults.standard.set(processed, forKey: processedKey)
+            // processedWorkouts is intentionally NOT cleared here.
+            // The UUID must stay in processedWorkouts so the workout scanner
+            // never picks it up again and re-uploads it to Livelox.
+            // Only deleteAllRoutes() (factory reset) clears processedWorkouts.
 
             if fileManager.fileExists(atPath: entry.gpxFilePath) {
                 try? fileManager.removeItem(atPath: entry.gpxFilePath)
@@ -238,7 +239,26 @@ final class StorageManager {
             UserDefaults.standard.removeObject(forKey: metadataKey)
             UserDefaults.standard.removeObject(forKey: processedKey)
             UserDefaults.standard.removeObject(forKey: lastImportStatusKey)
+            // Reset the scan anchor to today so that after a factory reset only
+            // future workouts are processed — not the entire HealthKit history.
+            UserDefaults.standard.set(
+                Calendar.current.startOfDay(for: Date()),
+                forKey: "loxbridgeInstallDate"
+            )
         }
+    }
+
+    /// The earliest date from which LoxBridge should process HealthKit workouts.
+    /// Set once on first launch and never changed automatically.
+    /// This prevents a new install (or app update) from scanning all historical
+    /// HealthKit workouts and uploading them to Livelox.
+    var workoutScanStartDate: Date {
+        if let stored = UserDefaults.standard.object(forKey: "loxbridgeInstallDate") as? Date {
+            return stored
+        }
+        let today = Calendar.current.startOfDay(for: Date())
+        UserDefaults.standard.set(today, forKey: "loxbridgeInstallDate")
+        return today
     }
 
     func setLastImportStatus(_ status: String) {
