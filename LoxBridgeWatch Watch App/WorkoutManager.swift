@@ -1,6 +1,7 @@
 import Combine
 import HealthKit
 import CoreLocation
+import WatchConnectivity
 import OSLog
 
 private let logger = Logger(subsystem: "se.erikfrick.loxbridge", category: "workout")
@@ -35,6 +36,11 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// delegate callback — previously those early points were silently dropped
     /// because the guard checked `state == .active` which wasn't set yet.
     private var isRouteRecording = false
+
+    /// All accurate GPS locations collected during this workout.
+    /// Sent to iPhone via WCSession.transferFile() at stop() so the route
+    /// appears in LoxBridge immediately, without waiting for HealthKit sync.
+    private var allRecordedLocations: [CLLocation] = []
 
     private override init() { super.init() }
 
@@ -87,11 +93,67 @@ final class WorkoutManager: NSObject, ObservableObject {
                 logger.error("finishRoute failed: \(error.localizedDescription)")
                 // Workout is still saved; only the GPS route is missing.
             }
+
+            // Send GPS points directly to iPhone via WatchConnectivity.
+            // This bypasses the HealthKit Watch→iPhone sync delay (1–5 min) so the
+            // route appears in LoxBridge immediately. The workoutUUID is the same as
+            // the HealthKit workout, so the HealthKit observer path will skip it
+            // automatically once this direct transfer has been processed.
+            sendDirectTransfer(workout: workout)
+
         } catch {
             logger.error("stop() failed: \(error.localizedDescription)")
         }
 
         state = .finished
+    }
+
+    private func sendDirectTransfer(workout: HKWorkout) {
+        guard WCSession.isSupported(),
+              WCSession.default.activationState == .activated else {
+            logger.warning("WCSession not available — iPhone will fall back to HealthKit sync")
+            return
+        }
+        guard !allRecordedLocations.isEmpty else {
+            logger.warning("No recorded locations to transfer")
+            return
+        }
+
+        let points: [[Double]] = allRecordedLocations.map { loc in
+            [loc.coordinate.latitude,
+             loc.coordinate.longitude,
+             loc.timestamp.timeIntervalSince1970,
+             max(0, loc.speed),
+             loc.horizontalAccuracy]
+        }
+
+        let deviceName: String = {
+            if let name = workout.device?.name, let type = workout.sourceRevision.productType {
+                return "\(name) (\(type))"
+            }
+            return workout.device?.name ?? workout.sourceRevision.source.name
+        }()
+
+        let transfer = WatchGPSTransfer(
+            workoutUUID:      workout.uuid.uuidString,
+            startDate:        workout.startDate.timeIntervalSince1970,
+            durationSeconds:  workout.duration,
+            distanceMeters:   distanceMeters,
+            activityTypeName: "Running",
+            deviceName:       deviceName,
+            points:           points
+        )
+
+        do {
+            let data = try JSONEncoder().encode(transfer)
+            let tmpURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("gps_\(workout.uuid.uuidString).json")
+            try data.write(to: tmpURL)
+            WCSession.default.transferFile(tmpURL, metadata: ["type": "WatchGPSTransfer"])
+            logger.info("GPS transfer queued: \(points.count) points for \(workout.uuid.uuidString)")
+        } catch {
+            logger.error("Failed to queue GPS transfer: \(error.localizedDescription)")
+        }
     }
 
     func reset() {
@@ -103,6 +165,7 @@ final class WorkoutManager: NSObject, ObservableObject {
         distanceMeters = 0
         errorMessage   = nil
         state          = .idle
+        allRecordedLocations = []
     }
 
     // MARK: - Private
@@ -226,6 +289,7 @@ extension WorkoutManager: CLLocationManagerDelegate {
             // async and often arrives after the first location batches, so checking
             // state would silently drop those early GPS points.
             guard let self, self.isRouteRecording else { return }
+            self.allRecordedLocations.append(contentsOf: accurate)
             self.routeBuilder?.insertRouteData(accurate) { _, err in
                 if let err {
                     logger.error("insertRouteData failed: \(err.localizedDescription)")

@@ -1,5 +1,6 @@
 import Foundation
 import WatchConnectivity
+import UIKit
 import OSLog
 
 /// Manages the WatchConnectivity session on the iPhone side.
@@ -100,7 +101,7 @@ final class WatchSessionManager: NSObject, WCSessionDelegate {
         UserDefaults.standard.set(data, forKey: payloadsKey)
     }
 
-    // MARK: - WCSessionDelegate (iPhone requires these three methods)
+    // MARK: - WCSessionDelegate
 
     func session(_ session: WCSession,
                  activationDidCompleteWith activationState: WCSessionActivationState,
@@ -114,7 +115,26 @@ final class WatchSessionManager: NSObject, WCSessionDelegate {
     func sessionDidBecomeInactive(_ session: WCSession) {}
 
     func sessionDidDeactivate(_ session: WCSession) {
-        // Re-activate for Watch switching (iPhone can pair with multiple Watches)
         WCSession.default.activate()
+    }
+
+    /// Receives GPS transfer files sent from the Watch app via transferFile().
+    /// Processes the workout immediately, bypassing the HealthKit sync delay.
+    func session(_ session: WCSession, didReceive file: WCSessionFile) {
+        guard file.metadata?["type"] as? String == "WatchGPSTransfer" else { return }
+
+        let bgTask = UIApplication.shared.beginBackgroundTask(withName: "WatchGPSTransfer") {}
+        AppLogger.workout.info("Received direct GPS transfer from Watch")
+
+        Task {
+            defer { UIApplication.shared.endBackgroundTask(bgTask) }
+            do {
+                let data = try Data(contentsOf: file.fileURL)
+                let transfer = try JSONDecoder().decode(WatchGPSTransfer.self, from: data)
+                try await WorkoutProcessor.shared.processDirectTransfer(transfer)
+            } catch {
+                AppLogger.workout.error("Direct GPS transfer failed: \(error.localizedDescription)")
+            }
+        }
     }
 }

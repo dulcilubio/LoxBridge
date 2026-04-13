@@ -149,6 +149,104 @@ final class WorkoutProcessor {
         return total / 1000
     }
 
+    /// Processes GPS data received directly from the Watch app via WatchConnectivity.
+    /// Skips HealthKit route extraction entirely — the locations are already here.
+    /// Uses the same workoutUUID as the HealthKit workout, so the HealthKit observer
+    /// path will see it as already processed and skip it automatically (no duplicates).
+    func processDirectTransfer(_ transfer: WatchGPSTransfer) async throws {
+        guard let workoutUUID = UUID(uuidString: transfer.workoutUUID) else {
+            AppLogger.workout.error("Invalid UUID in GPS transfer: \(transfer.workoutUUID)")
+            return
+        }
+        guard !storageManager.isProcessed(workoutUUID: workoutUUID) else {
+            AppLogger.workout.info("Direct transfer already processed: \(transfer.workoutUUID)")
+            return
+        }
+
+        let locations: [CLLocation] = transfer.points.compactMap { pt in
+            guard pt.count >= 5 else { return nil }
+            return CLLocation(
+                coordinate: CLLocationCoordinate2D(latitude: pt[0], longitude: pt[1]),
+                altitude: 0,
+                horizontalAccuracy: pt[4],
+                verticalAccuracy: -1,
+                course: -1,
+                speed: pt[3],
+                timestamp: Date(timeIntervalSince1970: pt[2])
+            )
+        }.sorted { $0.timestamp < $1.timestamp }
+
+        guard !locations.isEmpty else {
+            AppLogger.workout.error("Direct transfer has no valid locations: \(transfer.workoutUUID)")
+            return
+        }
+
+        let minDist = minDistanceKm
+        if minDist > 0 {
+            let distKm = totalDistanceKm(for: locations)
+            guard distKm >= minDist else {
+                AppLogger.workout.info("Direct transfer too short (\(String(format: "%.2f", distKm))km): \(transfer.workoutUUID)")
+                storageManager.markProcessed(workoutUUID: workoutUUID)
+                return
+            }
+        }
+
+        let gpxString = gpxBuilder.buildGPX(locations: locations)
+        guard !gpxString.isEmpty else {
+            throw AppError.gpxCreationFailed
+        }
+
+        let distKm = totalDistanceKm(for: locations)
+        let stats = WorkoutStats(
+            distanceKm: distKm > 0 ? distKm : nil,
+            durationSeconds: transfer.durationSeconds > 0 ? transfer.durationSeconds : nil,
+            activityTypeName: transfer.activityTypeName,
+            deviceName: transfer.deviceName,
+            workoutDate: Date(timeIntervalSince1970: transfer.startDate)
+        )
+
+        let metadata = try storageManager.saveGPX(gpxString: gpxString, workoutUUID: workoutUUID, stats: stats)
+        storageManager.markProcessed(workoutUUID: workoutUUID)
+        AppLogger.route.info("Direct transfer saved: \(metadata.gpxFilePath) (\(String(format: "%.2f", distKm)) km)")
+        NotificationCenter.default.post(name: .routeListChanged, object: nil)
+
+        let sub = subsample(locations: locations, maxPoints: 200)
+        let watchPayload = WatchRoutePayload(
+            workoutUUID: workoutUUID.uuidString,
+            status: "Saved",
+            distanceKm: stats.distanceKm,
+            durationSeconds: stats.durationSeconds,
+            activityTypeName: stats.activityTypeName,
+            locationName: nil,
+            createdAt: stats.workoutDate?.timeIntervalSince1970,
+            points: sub.points,
+            speeds: sub.speeds
+        )
+        WatchSessionManager.shared.sendWithPoints(payload: watchPayload)
+
+        if let firstLocation = locations.first {
+            let sm = storageManager
+            let wid = workoutUUID
+            Task.detached(priority: .utility) {
+                if let name = await WorkoutProcessor.reverseGeocode(location: firstLocation) {
+                    sm.updateLocationName(workoutUUID: wid, locationName: name)
+                }
+            }
+        }
+
+        if OAuthManager.shared.hasTokens {
+            await NotificationManager.shared.scheduleAutoUploadStarted()
+            do {
+                try await LiveloxUploader.shared.upload(workoutUUID: metadata.workoutUUID)
+            } catch {
+                AppLogger.upload.error("Direct transfer upload failed: \(error.localizedDescription)")
+                await NotificationManager.shared.scheduleUploadFailure(error: error)
+            }
+        } else {
+            await NotificationManager.shared.scheduleAutoUploadNeedsAuth()
+        }
+    }
+
     func process(workout: HKWorkout) async throws {
         let workoutUUID = workout.uuid
         guard !storageManager.isProcessed(workoutUUID: workoutUUID) else {
