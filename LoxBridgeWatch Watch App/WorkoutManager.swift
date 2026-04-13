@@ -22,6 +22,9 @@ final class WorkoutManager: NSObject, ObservableObject {
     @Published var elapsedSeconds: Int    = 0
     @Published var distanceMeters: Double = 0
     @Published var errorMessage:   String? = nil
+    /// UUID of the most recently finished workout; used by WorkoutView to track
+    /// whether the iPhone has confirmed receipt of the GPS transfer.
+    @Published var lastFinishedUUID: String? = nil
 
     private let healthStore  = HKHealthStore()
     private var session:     HKWorkoutSession?
@@ -154,6 +157,23 @@ final class WorkoutManager: NSObject, ObservableObject {
         } catch {
             logger.error("Failed to queue GPS transfer: \(error.localizedDescription)")
         }
+
+        // Insert a provisional route entry on the Watch immediately so the user
+        // sees "Sending to iPhone…" in the list while the transfer is in flight.
+        // The iPhone will replace this entry with a real status once it processes the workout.
+        lastFinishedUUID = workout.uuid.uuidString
+        let provisional = WatchRoutePayload(
+            workoutUUID:      workout.uuid.uuidString,
+            status:           "Sending to iPhone\u{2026}",
+            distanceKm:       distanceMeters > 0 ? distanceMeters / 1000.0 : nil,
+            durationSeconds:  workout.duration > 0 ? workout.duration : Double(elapsedSeconds),
+            activityTypeName: "Running",
+            locationName:     nil,
+            createdAt:        workout.startDate.timeIntervalSince1970,
+            points:           [],
+            speeds:           nil
+        )
+        WatchSessionManager.shared.insertProvisionalRoute(provisional)
     }
 
     func reset() {
@@ -161,10 +181,11 @@ final class WorkoutManager: NSObject, ObservableObject {
         builder      = nil
         routeBuilder = nil
         locationMgr  = nil
-        elapsedSeconds = 0
-        distanceMeters = 0
-        errorMessage   = nil
-        state          = .idle
+        elapsedSeconds   = 0
+        distanceMeters   = 0
+        errorMessage     = nil
+        lastFinishedUUID = nil
+        state            = .idle
         allRecordedLocations = []
     }
 

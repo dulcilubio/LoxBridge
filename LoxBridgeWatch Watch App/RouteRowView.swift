@@ -55,18 +55,20 @@ struct RouteRowView: View {
 
     private var statusIcon: String {
         switch route.status {
-        case "On Livelox":               return "checkmark.circle.fill"
-        case "Failed":                   return "exclamationmark.triangle.fill"
-        case _ where route.status.hasPrefix("Processing"): return "arrow.clockwise"
-        default:                         return "doc.fill"
+        case "On Livelox":                                  return "checkmark.circle.fill"
+        case "Failed":                                      return "exclamationmark.triangle.fill"
+        case _ where route.status.hasPrefix("Sending"):     return "iphone.and.arrow.forward"
+        case _ where route.status.hasPrefix("Processing"):  return "arrow.clockwise"
+        default:                                            return "doc.fill"
         }
     }
 
     private var statusColor: Color {
         switch route.status {
-        case "On Livelox": return .green
-        case "Failed":     return .red
-        default:           return .secondary
+        case "On Livelox":                              return .green
+        case "Failed":                                  return .red
+        case _ where route.status.hasPrefix("Sending"): return .orange
+        default:                                        return .secondary
         }
     }
 

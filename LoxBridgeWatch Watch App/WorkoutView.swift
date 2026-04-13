@@ -4,6 +4,7 @@ import SwiftUI
 /// When the workout ends it is saved to HealthKit; the iPhone picks it up automatically.
 struct WorkoutView: View {
     @StateObject private var wm = WorkoutManager.shared
+    @StateObject private var sessionMgr = WatchSessionManager.shared
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -135,6 +136,10 @@ struct WorkoutView: View {
             }
             .foregroundStyle(.secondary)
 
+            // Transfer status: show while the route is in flight to iPhone,
+            // disappear once the iPhone confirms (provisional entry is replaced).
+            transferStatusView
+
             Button {
                 wm.reset()
                 dismiss()
@@ -144,9 +149,31 @@ struct WorkoutView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .padding(.top, 4)
+            .padding(.top, 2)
         }
         .padding(.horizontal)
+    }
+
+    @ViewBuilder
+    private var transferStatusView: some View {
+        if let uuid = wm.lastFinishedUUID {
+            let confirmed = sessionMgr.routes.contains {
+                $0.workoutUUID == uuid && !$0.status.hasPrefix("Sending")
+            }
+            if confirmed {
+                Label("Saved", systemImage: "iphone.and.arrow.forward")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 4) {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                    Text("Sending to iPhone\u{2026}")
+                        .font(.caption2)
+                }
+                .foregroundStyle(.secondary)
+            }
+        }
     }
 
     // MARK: - Formatters

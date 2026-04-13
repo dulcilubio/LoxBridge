@@ -29,6 +29,21 @@ final class WatchSessionManager: NSObject, ObservableObject, WCSessionDelegate {
         }
     }
 
+    // MARK: - Public API
+
+    /// Inserts a provisional route entry immediately after a Watch workout ends,
+    /// before the iPhone has had a chance to confirm receipt. This lets the user
+    /// see "Sending to iPhone…" in the route list right away instead of nothing.
+    /// The entry is replaced automatically when the iPhone pushes a real status update.
+    func insertProvisionalRoute(_ payload: WatchRoutePayload) {
+        guard !routes.contains(where: { $0.workoutUUID == payload.workoutUUID }) else { return }
+        var updated = routes
+        updated.insert(payload, at: 0)
+        let trimmed = Array(updated.prefix(5))
+        routes = trimmed
+        saveCachedPayloads(trimmed)
+    }
+
     // MARK: - WCSessionDelegate
 
     nonisolated func session(
