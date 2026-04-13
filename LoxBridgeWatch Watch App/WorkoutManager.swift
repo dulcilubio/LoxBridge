@@ -224,7 +224,10 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     private func startDisplayTimer() {
         displayTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
+            // DispatchQueue.main.async avoids "Publishing changes from within view
+            // updates" — unlike Task { @MainActor }, it always defers to the next
+            // run loop iteration rather than potentially executing synchronously.
+            DispatchQueue.main.async { [weak self] in
                 guard let self, let b = self.builder else { return }
                 self.elapsedSeconds = Int(b.elapsedTime)
             }

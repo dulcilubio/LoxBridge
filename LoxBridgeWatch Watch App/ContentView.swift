@@ -31,7 +31,7 @@ struct ContentView: View {
             .navigationTitle("LoxBridge")
         }
         // MARK: In-app alert when a route reaches Livelox
-        .alert("Route on Livelox! 🎉", isPresented: Binding(
+        .alert("Route synced to Livelox! ◪", isPresented: Binding(
             get:  { store.newlyCompletedRoute != nil },
             set:  { if !$0 { store.newlyCompletedRoute = nil } }
         )) {
