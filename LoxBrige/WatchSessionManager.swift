@@ -120,16 +120,32 @@ final class WatchSessionManager: NSObject, WCSessionDelegate {
 
     /// Receives GPS transfer files sent from the Watch app via transferFile().
     /// Processes the workout immediately, bypassing the HealthKit sync delay.
+    /// Called on an arbitrary background thread by WatchConnectivity — even when
+    /// the iPhone app is suspended, the system wakes it to deliver the file.
     func session(_ session: WCSession, didReceive file: WCSessionFile) {
         guard file.metadata?["type"] as? String == "WatchGPSTransfer" else { return }
-
-        let bgTask = UIApplication.shared.beginBackgroundTask(withName: "WatchGPSTransfer") {}
         AppLogger.workout.info("Received direct GPS transfer from Watch")
 
+        // Capture the file URL immediately — WCSessionFile is only valid until
+        // this delegate method returns on some OS versions.
+        let fileURL = file.fileURL
+
+        // `var` so the expiration handler can reference it by name and end the task.
+        var bgTaskID: UIBackgroundTaskIdentifier = .invalid
+        bgTaskID = UIApplication.shared.beginBackgroundTask(withName: "WatchGPSTransfer") {
+            // Expiration handler: iOS is about to suspend us. End the task so
+            // the system doesn't penalise the app for leaving it open.
+            // processDirectTransfer saves the GPX before uploading, so even if
+            // the upload is cut short, the route is already persisted and will
+            // be retried when the app next opens via processPendingUploads().
+            AppLogger.workout.warning("WatchGPSTransfer background task expired")
+            UIApplication.shared.endBackgroundTask(bgTaskID)
+        }
+
         Task {
-            defer { UIApplication.shared.endBackgroundTask(bgTask) }
+            defer { UIApplication.shared.endBackgroundTask(bgTaskID) }
             do {
-                let data = try Data(contentsOf: file.fileURL)
+                let data = try Data(contentsOf: fileURL)
                 let transfer = try JSONDecoder().decode(WatchGPSTransfer.self, from: data)
                 try await WorkoutProcessor.shared.processDirectTransfer(transfer)
             } catch {
