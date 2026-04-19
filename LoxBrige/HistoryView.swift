@@ -6,6 +6,10 @@ struct HistoryView: View {
 
     @State private var showDeleteAllConfirmation = false
     @State private var showLegend = false
+    @State private var isSelecting = false
+    @State private var selection: Set<UUID> = []
+    @State private var showMergeConfirmation = false
+    @State private var mergeError: String?
 
     private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -34,39 +38,65 @@ struct HistoryView: View {
                 } else {
                     List {
                         ForEach(model.recentRoutes, id: \.workoutUUID) { route in
-                            NavigationLink(destination: RouteDetailView(route: route)) {
-                                RouteRow(
-                                    route: route,
-                                    dateFormatter: Self.dateFormatter,
-                                    onUpload: route.uploaded ? nil : {
-                                        Task {
-                                            do {
-                                                try await LiveloxUploader.shared.upload(workoutUUID: route.workoutUUID)
-                                                await model.refreshStatus()
-                                            } catch {
-                                                model.lastError = error.localizedDescription
+                            if isSelecting {
+                                // Selection mode: tap row to toggle checkbox
+                                Button {
+                                    if selection.contains(route.workoutUUID) {
+                                        selection.remove(route.workoutUUID)
+                                    } else {
+                                        selection.insert(route.workoutUUID)
+                                    }
+                                } label: {
+                                    HStack {
+                                        Image(systemName: selection.contains(route.workoutUUID)
+                                              ? "checkmark.circle.fill" : "circle")
+                                            .foregroundStyle(selection.contains(route.workoutUUID)
+                                                             ? .blue : .secondary)
+                                            .imageScale(.large)
+                                        RouteRow(
+                                            route: route,
+                                            dateFormatter: Self.dateFormatter,
+                                            onUpload: nil
+                                        )
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                NavigationLink(destination: RouteDetailView(route: route)) {
+                                    RouteRow(
+                                        route: route,
+                                        dateFormatter: Self.dateFormatter,
+                                        onUpload: route.uploaded ? nil : {
+                                            Task {
+                                                do {
+                                                    try await LiveloxUploader.shared.upload(workoutUUID: route.workoutUUID)
+                                                    await model.refreshStatus()
+                                                } catch {
+                                                    model.lastError = error.localizedDescription
+                                                }
                                             }
                                         }
+                                    )
+                                }
+                                // Leading swipe → share GPX file
+                                .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                    if let gpxURL = route.gpxFileURL {
+                                        ShareLink(
+                                            item: gpxURL,
+                                            preview: SharePreview(
+                                                route.shareLabel,
+                                                icon: Image(systemName: "map.fill")
+                                            )
+                                        ) {
+                                            Label("Share", systemImage: "square.and.arrow.up")
+                                        }
+                                        .tint(.blue)
                                     }
-                                )
-                            }
-                            // Leading swipe → share GPX file
-                            .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                                if let gpxURL = route.gpxFileURL {
-                                    ShareLink(
-                                        item: gpxURL,
-                                        preview: SharePreview(
-                                            route.shareLabel,
-                                            icon: Image(systemName: "map.fill")
-                                        )
-                                    ) {
-                                        Label("Share", systemImage: "square.and.arrow.up")
-                                    }
-                                    .tint(.blue)
                                 }
                             }
                         }
                         .onDelete { offsets in
+                            guard !isSelecting else { return }
                             Task { await model.deleteRoutes(at: offsets) }
                         }
                     }
@@ -76,9 +106,14 @@ struct HistoryView: View {
             .navigationTitle("Route History")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                // Leading: Delete All (only when routes exist)
+                // Leading: Delete All (normal mode) or Cancel (select mode)
                 ToolbarItem(placement: .topBarLeading) {
-                    if !model.recentRoutes.isEmpty {
+                    if isSelecting {
+                        Button("Cancel") {
+                            isSelecting = false
+                            selection = []
+                        }
+                    } else if !model.recentRoutes.isEmpty {
                         Button(role: .destructive) {
                             showDeleteAllConfirmation = true
                         } label: {
@@ -86,12 +121,27 @@ struct HistoryView: View {
                         }
                     }
                 }
-                // Trailing: legend button
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showLegend = true
-                    } label: {
-                        Image(systemName: "info.circle")
+                // Trailing: Merge (when 2 selected) | Select | Legend
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if isSelecting {
+                        if selection.count == 2 {
+                            Button("Merge (\(selection.count))") {
+                                showMergeConfirmation = true
+                            }
+                            .tint(.blue)
+                        }
+                    } else if model.recentRoutes.count >= 2 {
+                        Button("Select") {
+                            isSelecting = true
+                            selection = []
+                        }
+                    }
+                    if !isSelecting {
+                        Button {
+                            showLegend = true
+                        } label: {
+                            Image(systemName: "info.circle")
+                        }
                     }
                 }
             }
@@ -107,6 +157,35 @@ struct HistoryView: View {
                 }
             } message: {
                 Text("GPX files are permanently deleted from this device. Routes already on Livelox are not affected.")
+            }
+            .confirmationDialog(
+                "Merge 2 routes into one?",
+                isPresented: $showMergeConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Merge routes") {
+                    let uuids = Array(selection)
+                    isSelecting = false
+                    selection = []
+                    Task {
+                        do {
+                            try await model.mergeRoutes(uuidA: uuids[0], uuidB: uuids[1])
+                        } catch {
+                            mergeError = error.localizedDescription
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("The GPS tracks are combined into one route and uploaded to Livelox. The two originals are deleted from this device.")
+            }
+            .alert("Merge failed", isPresented: Binding(
+                get: { mergeError != nil },
+                set: { if !$0 { mergeError = nil } }
+            )) {
+                Button("OK") { mergeError = nil }
+            } message: {
+                Text(mergeError ?? "")
             }
             .refreshable { await model.refreshStatus() }
             .sheet(isPresented: $showLegend) {
@@ -310,6 +389,7 @@ private struct LegendView: View {
                     LegendRow(icon: "hand.tap", color: .primary, label: "Tap row", detail: "Open track map and full details")
                     LegendRow(icon: "arrow.left", color: .primary, label: "Swipe left", detail: "Delete route from this device")
                     LegendRow(icon: "arrow.right", color: .primary, label: "Swipe right", detail: "Share GPX file")
+                    LegendRow(icon: "checkmark.circle", color: .blue, label: "Select → Merge", detail: "Tap \"Select\", pick 2 routes, tap \"Merge\" to combine GPS tracks into one")
                 }
             }
             .navigationTitle("Route History Guide")

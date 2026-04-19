@@ -51,6 +51,10 @@ final class WorkoutProcessor {
         max(0, UserDefaults.standard.double(forKey: "minWorkoutDistanceKm"))
     }
 
+    private var minDurationSeconds: Double {
+        max(0, UserDefaults.standard.double(forKey: "minWorkoutDurationSecs"))
+    }
+
     private init() {}
 
     /// Builds a human-readable device description from the HealthKit workout metadata.
@@ -191,6 +195,15 @@ final class WorkoutProcessor {
             }
         }
 
+        let minDur = minDurationSeconds
+        if minDur > 0 {
+            guard transfer.durationSeconds >= minDur else {
+                AppLogger.workout.info("Direct transfer too brief (\(Int(transfer.durationSeconds))s < \(Int(minDur))s): \(transfer.workoutUUID)")
+                storageManager.markProcessed(workoutUUID: workoutUUID)
+                return
+            }
+        }
+
         let gpxString = gpxBuilder.buildGPX(locations: locations)
         guard !gpxString.isEmpty else {
             throw AppError.gpxCreationFailed
@@ -277,6 +290,16 @@ final class WorkoutProcessor {
             let distKm = totalDistanceKm(for: locations)
             guard distKm >= minDist else {
                 AppLogger.workout.info("Workout too short (\(String(format: "%.2f", distKm))km < \(minDist)km): \(workoutUUID.uuidString)")
+                storageManager.markProcessed(workoutUUID: workoutUUID)
+                return
+            }
+        }
+
+        // Skip workouts shorter than the user-configured minimum duration.
+        let minDur = minDurationSeconds
+        if minDur > 0 {
+            guard workout.duration >= minDur else {
+                AppLogger.workout.info("Workout too brief (\(Int(workout.duration))s < \(Int(minDur))s): \(workoutUUID.uuidString)")
                 storageManager.markProcessed(workoutUUID: workoutUUID)
                 return
             }

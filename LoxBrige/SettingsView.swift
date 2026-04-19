@@ -6,6 +6,7 @@ struct SettingsView: View {
     @ObservedObject var model: AppViewModel
     @Environment(\.openURL) private var openURL
     @AppStorage("minWorkoutDistanceKm")   private var minWorkoutDistanceKm:   Double = 0
+    @AppStorage("minWorkoutDurationSecs") private var minWorkoutDurationSecs: Double = 0
     @AppStorage("notifyOnUploadStarted")  private var notifyOnUploadStarted:  Bool = false
     @AppStorage("notifyOnUploadFailed")   private var notifyOnUploadFailed:   Bool = false
     @AppStorage("notifyOnUploadComplete") private var notifyOnUploadComplete: Bool = true
@@ -70,6 +71,18 @@ struct SettingsView: View {
                                 minWorkoutDistanceKm > 0
                                     ? String(format: String(localized: "Activities shorter than %.1f km will not be sent to Livelox"), minWorkoutDistanceKm)
                                     : String(localized: "All activities will be sent to Livelox regardless of distance")
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                    Stepper(value: $minWorkoutDurationSecs, in: 0...300, step: 10) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Minimum duration")
+                            Text(
+                                minWorkoutDurationSecs > 0
+                                    ? String(format: String(localized: "Activities shorter than %d s will not be sent to Livelox"), Int(minWorkoutDurationSecs))
+                                    : String(localized: "All activities will be sent to Livelox regardless of duration")
                             )
                             .font(.caption)
                             .foregroundStyle(.secondary)

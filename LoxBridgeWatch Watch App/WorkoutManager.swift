@@ -25,12 +25,18 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// UUID of the most recently finished workout; used by WorkoutView to track
     /// whether the iPhone has confirmed receipt of the GPS transfer.
     @Published var lastFinishedUUID: String? = nil
+    /// GPS horizontal accuracy (metres) while idle, updated by `idleLocationMgr`.
+    /// -1 means no fix yet. Used to show the GPS status icon on the idle screen.
+    @Published var currentGPSAccuracy: CLLocationAccuracy = -1
 
     private let healthStore  = HKHealthStore()
     private var session:     HKWorkoutSession?
     private var builder:     HKLiveWorkoutBuilder?
     private var routeBuilder: HKWorkoutRouteBuilder?
     private var locationMgr: CLLocationManager?
+    /// Lightweight location manager used only on the idle screen to track GPS
+    /// accuracy before a workout starts. Stopped as soon as start() is called.
+    private var idleLocationMgr: CLLocationManager?
     private var displayTimer: Timer?
 
     /// Set to `true` immediately before CLLocationManager starts (in beginSession),
@@ -45,11 +51,31 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// appears in LoxBridge immediately, without waiting for HealthKit sync.
     private var allRecordedLocations: [CLLocation] = []
 
-    private override init() { super.init() }
+    private override init() {
+        super.init()
+        startIdleLocationUpdates()
+    }
+
+    /// Starts a low-priority CLLocationManager purely to track GPS accuracy on
+    /// the idle screen. Stops automatically when the workout starts.
+    private func startIdleLocationUpdates() {
+        let mgr = CLLocationManager()
+        mgr.delegate = self
+        mgr.desiredAccuracy = kCLLocationAccuracyBest
+        mgr.requestWhenInUseAuthorization()
+        mgr.startUpdatingLocation()
+        idleLocationMgr = mgr
+    }
+
+    private func stopIdleLocationUpdates() {
+        idleLocationMgr?.stopUpdatingLocation()
+        idleLocationMgr = nil
+    }
 
     // MARK: - Public API
 
     func start() async {
+        stopIdleLocationUpdates() // idle GPS monitor no longer needed during workout
         do {
             try await requestAuthorization()
             try await beginSession()
@@ -64,7 +90,13 @@ final class WorkoutManager: NSObject, ObservableObject {
     }
 
     func stop() async {
-        guard let session, let builder else { return }
+        // Set .finished FIRST so that any concurrent call (e.g. onDisappear firing while
+        // this async chain is already in flight) hits the guard immediately and returns,
+        // preventing session.end() being called twice ("already Ended" error).
+        guard state == .active || state == .paused,
+              let session, let builder else { return }
+        state = .finished
+
         stopDisplayTimer()
         isRouteRecording = false
         locationMgr?.stopUpdatingLocation()
@@ -107,8 +139,6 @@ final class WorkoutManager: NSObject, ObservableObject {
         } catch {
             logger.error("stop() failed: \(error.localizedDescription)")
         }
-
-        state = .finished
     }
 
     private func sendDirectTransfer(workout: HKWorkout) {
@@ -181,12 +211,15 @@ final class WorkoutManager: NSObject, ObservableObject {
         builder      = nil
         routeBuilder = nil
         locationMgr  = nil
-        elapsedSeconds   = 0
-        distanceMeters   = 0
-        errorMessage     = nil
-        lastFinishedUUID = nil
-        state            = .idle
+        elapsedSeconds       = 0
+        distanceMeters       = 0
+        errorMessage         = nil
+        lastFinishedUUID     = nil
+        currentGPSAccuracy   = -1
+        state                = .idle
         allRecordedLocations = []
+        // Restart idle GPS monitor so the accuracy icon is live again.
+        startIdleLocationUpdates()
     }
 
     // MARK: - Private
@@ -305,14 +338,22 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
 extension WorkoutManager: CLLocationManagerDelegate {
     nonisolated func locationManager(_ manager: CLLocationManager,
                                      didUpdateLocations locations: [CLLocation]) {
-        let accurate = locations.filter { $0.horizontalAccuracy > 0 && $0.horizontalAccuracy < 50 }
-        guard !accurate.isEmpty else { return }
+        guard let latest = locations.last else { return }
+
         Task { @MainActor [weak self] in
-            // Use isRouteRecording (set synchronously in beginSession) rather than
-            // state == .active: the HKWorkoutSession .running delegate callback is
-            // async and often arrives after the first location batches, so checking
-            // state would silently drop those early GPS points.
-            guard let self, self.isRouteRecording else { return }
+            guard let self else { return }
+
+            // Always update the GPS accuracy indicator for the idle screen,
+            // regardless of which manager fired (idle or workout).
+            if latest.horizontalAccuracy > 0 {
+                self.currentGPSAccuracy = latest.horizontalAccuracy
+            }
+
+            // Route recording: only feed points from the workout location manager
+            // while isRouteRecording is active.
+            guard self.isRouteRecording else { return }
+            let accurate = locations.filter { $0.horizontalAccuracy > 0 && $0.horizontalAccuracy < 50 }
+            guard !accurate.isEmpty else { return }
             self.allRecordedLocations.append(contentsOf: accurate)
             self.routeBuilder?.insertRouteData(accurate) { _, err in
                 if let err {

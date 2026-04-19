@@ -86,6 +86,7 @@ final class AppViewModel: ObservableObject {
         StorageManager.shared.deleteAllRoutes()
         oauthManager.logout()
         UserDefaults.standard.removeObject(forKey: "minWorkoutDistanceKm")
+        UserDefaults.standard.removeObject(forKey: "minWorkoutDurationSecs")
         UserDefaults.standard.removeObject(forKey: "onboardingCompleted")
         lastError = nil
         await refreshStatus()
@@ -148,6 +149,88 @@ final class AppViewModel: ObservableObject {
         }
         WatchSessionManager.shared.syncStatus()
         await refreshStatus()
+    }
+
+    /// Merges two saved routes into one combined GPX file.
+    ///
+    /// The GPS track points from both routes are loaded from disk, merged by timestamp,
+    /// and written as a single new GPX file. The two originals are deleted (their
+    /// HealthKit UUIDs remain in processedWorkouts so they are never re-uploaded).
+    /// The merged route is automatically queued for upload to Livelox.
+    func mergeRoutes(uuidA: UUID, uuidB: UUID) async throws {
+        guard let metaA = StorageManager.shared.metadata(for: uuidA),
+              let metaB = StorageManager.shared.metadata(for: uuidB) else {
+            throw MergeError.routeNotFound
+        }
+
+        // Load and parse both GPX files into CLLocation arrays.
+        let locsA = try parseTrkpts(from: metaA.gpxFilePath)
+        let locsB = try parseTrkpts(from: metaB.gpxFilePath)
+        guard !locsA.isEmpty || !locsB.isEmpty else { throw MergeError.noPoints }
+
+        // Merge and sort by timestamp.
+        let combined = (locsA + locsB).sorted { $0.timestamp < $1.timestamp }
+
+        // Build the merged GPX.
+        let gpxString = GPXBuilder().buildGPX(locations: combined)
+
+        // Metadata: pick the earlier start date, sum stats, use longer route's type.
+        let createdAt  = [metaA.createdAt, metaB.createdAt].compactMap { $0 }.min() ?? Date()
+        let distSum    = (metaA.distanceKm ?? 0) + (metaB.distanceKm ?? 0)
+        let durSum     = (metaA.durationSeconds ?? 0) + (metaB.durationSeconds ?? 0)
+        let longerMeta = (metaA.durationSeconds ?? 0) >= (metaB.durationSeconds ?? 0) ? metaA : metaB
+        let stats = WorkoutStats(
+            distanceKm: distSum > 0 ? distSum : nil,
+            durationSeconds: durSum > 0 ? durSum : nil,
+            activityTypeName: longerMeta.activityTypeName,
+            deviceName: longerMeta.deviceName,
+            workoutDate: createdAt
+        )
+
+        // Save the new merged route with a fresh synthetic UUID.
+        let newUUID = UUID()
+        let metadata = try StorageManager.shared.saveGPX(gpxString: gpxString,
+                                                          workoutUUID: newUUID,
+                                                          stats: stats)
+        AppLogger.route.info("Merged \(uuidA.uuidString) + \(uuidB.uuidString) → \(newUUID.uuidString)")
+
+        // Carry over the location name from whichever original has one.
+        if let locName = metaA.locationName ?? metaB.locationName {
+            StorageManager.shared.updateLocationName(workoutUUID: newUUID, locationName: locName)
+        }
+
+        // Delete originals (their UUIDs stay in processedWorkouts).
+        StorageManager.shared.deleteRoute(workoutUUID: uuidA)
+        StorageManager.shared.deleteRoute(workoutUUID: uuidB)
+
+        NotificationCenter.default.post(name: .routeListChanged, object: nil)
+
+        // Auto-upload if Livelox is connected.
+        if OAuthManager.shared.isAuthorized {
+            try await LiveloxUploader.shared.upload(workoutUUID: metadata.workoutUUID)
+        }
+        await refreshStatus()
+    }
+
+    enum MergeError: LocalizedError {
+        case routeNotFound, noPoints, parseError(String)
+        var errorDescription: String? {
+            switch self {
+            case .routeNotFound: return "One or both routes could not be found."
+            case .noPoints:      return "The selected routes contain no GPS points."
+            case .parseError(let f): return "Could not read GPX file: \(f)"
+            }
+        }
+    }
+
+    /// Parses `<trkpt>` elements from a GPX file into `CLLocation` objects.
+    private func parseTrkpts(from path: String) throws -> [CLLocation] {
+        guard FileManager.default.fileExists(atPath: path) else {
+            throw MergeError.parseError(path)
+        }
+        let data = try Data(contentsOf: URL(fileURLWithPath: path))
+        let parser = TrkptParser()
+        return parser.parse(data: data)
     }
 
 #if targetEnvironment(simulator)
