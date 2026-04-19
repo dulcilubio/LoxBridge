@@ -63,25 +63,26 @@ struct WorkoutView: View {
     // MARK: - Active / Paused
 
     private var activeView: some View {
-        VStack(spacing: 6) {
-            Spacer(minLength: 0)
+        ZStack(alignment: .topTrailing) {
+            VStack(spacing: 6) {
+                Spacer(minLength: 0)
 
-            Text(formattedTime)
-                .font(.system(size: 36, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .opacity(wm.state == .paused ? 0.45 : 1.0)
+                Text(formattedTime)
+                    .font(.system(size: 36, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .opacity(wm.state == .paused ? 0.45 : 1.0)
 
-            Text(formattedDistance)
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(.secondary)
-                .opacity(wm.state == .paused ? 0.45 : 1.0)
+                Text(formattedDistance)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .opacity(wm.state == .paused ? 0.45 : 1.0)
 
-            Text(formattedPace)
-                .font(.system(size: 14, weight: .regular))
-                .foregroundStyle(.secondary)
-                .opacity(wm.state == .paused ? 0.45 : 1.0)
+                Text(formattedPace)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(.secondary)
+                    .opacity(wm.state == .paused ? 0.45 : 1.0)
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
 
             if wm.state == .active {
                 // Hold-to-pause: fill animation left → right over 0.6 s.
@@ -112,6 +113,13 @@ struct WorkoutView: View {
         }
         .padding(.horizontal)
         .padding(.bottom, 4)
+
+        // GPS accuracy icon — top-right corner, same as idle screen
+        Image(systemName: gpsIcon(wm.currentGPSAccuracy))
+            .font(.caption2)
+            .foregroundStyle(gpsColor(wm.currentGPSAccuracy))
+            .padding(6)
+        }
     }
 
     // MARK: - Finished

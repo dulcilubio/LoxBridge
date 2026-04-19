@@ -2,16 +2,25 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var store: WatchSessionManager
+    @State private var showWorkout = false
 
     var body: some View {
         NavigationStack {
             List {
                 // MARK: Start Workout shortcut
+                // Presented as fullScreenCover so there is no navigation back button
+                // and no swipe-back gesture — accidental dismissal during a workout
+                // would lose the ongoing session.
                 Section {
-                    NavigationLink(destination: WorkoutView()) {
+                    Button {
+                        showWorkout = true
+                    } label: {
                         Label("Start Workout", systemImage: "figure.run")
                             .foregroundStyle(.green)
                     }
+                }
+                .fullScreenCover(isPresented: $showWorkout) {
+                    WorkoutView()
                 }
 
                 // MARK: Route list (inline empty state — no full-screen overlay)

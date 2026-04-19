@@ -385,6 +385,12 @@ private struct LegendView: View {
                     LegendRow(icon: "gauge.with.dots.needle.33percent",color: .primary, label: "Pace",          detail: "Average pace in minutes per kilometre")
                     LegendRow(icon: "location.fill",                   color: .primary, label: "Location",      detail: "Area name based on GPS start point")
                 }
+                Section("Apple Watch GPS signal") {
+                    LegendRow(icon: "location.fill",  color: .green,  label: "Good GPS",    detail: "Accuracy better than 20 m — ideal for recording")
+                    LegendRow(icon: "location",       color: .yellow, label: "Coarse GPS",  detail: "Accuracy 20–50 m — may affect route quality")
+                    LegendRow(icon: "location",       color: .orange, label: "Poor GPS",    detail: "Accuracy worse than 50 m — wait for better signal if possible")
+                    LegendRow(icon: "location.slash", color: .gray,   label: "No GPS fix",  detail: "Watch is still searching — visible on the idle screen before you start")
+                }
                 Section("Gestures & navigation") {
                     LegendRow(icon: "hand.tap", color: .primary, label: "Tap row", detail: "Open track map and full details")
                     LegendRow(icon: "arrow.left", color: .primary, label: "Swipe left", detail: "Delete route from this device")
