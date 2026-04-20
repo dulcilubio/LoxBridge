@@ -28,6 +28,10 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// GPS horizontal accuracy (metres) while idle, updated by `idleLocationMgr`.
     /// -1 means no fix yet. Used to show the GPS status icon on the idle screen.
     @Published var currentGPSAccuracy: CLLocationAccuracy = -1
+    /// True while the workout screen is open (including the idle/start sub-screen).
+    /// Set to true by ContentView's "Start Workout" button so WorkoutView is shown
+    /// before start() is called; cleared by reset() when the user taps Done.
+    @Published var isWorkoutOpen = false
 
     private let healthStore  = HKHealthStore()
     private var session:     HKWorkoutSession?
@@ -217,6 +221,7 @@ final class WorkoutManager: NSObject, ObservableObject {
         lastFinishedUUID     = nil
         currentGPSAccuracy   = -1
         state                = .idle
+        isWorkoutOpen        = false
         allRecordedLocations = []
         // Restart idle GPS monitor so the accuracy icon is live again.
         startIdleLocationUpdates()

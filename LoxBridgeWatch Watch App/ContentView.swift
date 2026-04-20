@@ -2,25 +2,21 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var store: WatchSessionManager
-    @State private var showWorkout = false
 
     var body: some View {
         NavigationStack {
             List {
                 // MARK: Start Workout shortcut
-                // Presented as fullScreenCover so there is no navigation back button
-                // and no swipe-back gesture — accidental dismissal during a workout
-                // would lose the ongoing session.
+                // Calling wm.start() changes WorkoutManager.state out of .idle,
+                // which causes LoxBridgeWatchApp to swap the root view to WorkoutView
+                // with zero navigation chrome — no back button, no X button.
                 Section {
                     Button {
-                        showWorkout = true
+                        WorkoutManager.shared.isWorkoutOpen = true
                     } label: {
                         Label("Start Workout", systemImage: "figure.run")
                             .foregroundStyle(.green)
                     }
-                }
-                .fullScreenCover(isPresented: $showWorkout) {
-                    WorkoutView()
                 }
 
                 // MARK: Route list (inline empty state — no full-screen overlay)

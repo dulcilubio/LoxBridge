@@ -1,12 +1,14 @@
 import SwiftUI
 import CoreLocation
 
-/// Simple workout recording view: Start → active (time + distance + Pause/Stop) → summary.
-/// When the workout ends it is saved to HealthKit; the iPhone picks it up automatically.
+/// Workout recording view: active (time + distance + hold-to-pause) → finished summary.
+/// Shown directly at root level by LoxBridgeWatchApp when WorkoutManager.state != .idle,
+/// so there is no navigation chrome (no back button, no X button, no swipe-to-dismiss).
+/// The only way out is tapping "Done" on the finished screen, which calls wm.reset()
+/// and transitions state back to .idle — causing the app to show ContentView again.
 struct WorkoutView: View {
     @StateObject private var wm = WorkoutManager.shared
     @StateObject private var sessionMgr = WatchSessionManager.shared
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         Group {
@@ -16,13 +18,6 @@ struct WorkoutView: View {
                  .paused:   activeView
             case .finished: finishedView
             }
-        }
-        .onDisappear {
-            // Safety: if user swipes back during workout, stop it.
-            if wm.state == .active || wm.state == .paused {
-                Task { await wm.stop() }
-            }
-            if wm.state == .finished { wm.reset() }
         }
         .alert("Error", isPresented: Binding(
             get:  { wm.errorMessage != nil },
@@ -156,8 +151,8 @@ struct WorkoutView: View {
             transferStatusView
 
             Button {
+                // reset() sets state = .idle → LoxBridgeWatchApp swaps back to ContentView
                 wm.reset()
-                dismiss()
             } label: {
                 Image(systemName: "checkmark")
                     .font(.body.bold())
