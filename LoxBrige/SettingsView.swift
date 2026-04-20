@@ -176,14 +176,17 @@ struct SettingsView: View {
 
     // MARK: - Version string
 
-    /// "1.0 (42) · 19 Mar 2026" — tap 10 times to trigger the fireworks easter egg.
+    /// "1.0 (42) · 19 Mar 2026 · a1b2c3d" — tap 10 times to trigger the fireworks easter egg.
+    /// The git commit hash is injected into Info.plist at build time by the "Inject Git Commit"
+    /// Run Script Build Phase; falls back to "–" if not present (e.g. simulator without a git repo).
     private var appVersionString: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
         let build   = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
-        if let date = executableBuildDate {
-            return "\(version) (\(build)) · \(date)"
-        }
-        return "\(version) (\(build))"
+        let commit  = Bundle.main.object(forInfoDictionaryKey: "GitCommit") as? String
+        var s = "\(version) (\(build))"
+        if let date = executableBuildDate { s += " · \(date)" }
+        if let c = commit, !c.isEmpty      { s += " · \(c)" }
+        return s
     }
 
     /// Modification date of the compiled binary — a reliable proxy for build date.

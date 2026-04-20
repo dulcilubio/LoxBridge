@@ -3,6 +3,10 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var store: WatchSessionManager
 
+    // MARK: - Version easter egg (tap build info 5× to see full commit hash)
+    @State private var versionTapCount = 0
+    @State private var showVersionAlert = false
+
     var body: some View {
         NavigationStack {
             List {
@@ -32,6 +36,24 @@ struct ContentView: View {
                         }
                     }
                 }
+
+                // MARK: Version footer — tap 5× to show full build info alert
+                Section {
+                    Button {
+                        versionTapCount += 1
+                        if versionTapCount >= 5 {
+                            versionTapCount = 0
+                            showVersionAlert = true
+                        }
+                    } label: {
+                        Text(watchVersionString)
+                            .font(.system(size: 9))
+                            .foregroundStyle(.quaternary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(Color.clear)
+                }
             }
             .navigationTitle("LoxBridge")
         }
@@ -47,6 +69,29 @@ struct ContentView: View {
                 Text("\(name) has been imported to Livelox.")
             }
         }
+        // MARK: Build info alert (5-tap easter egg)
+        .alert("Build Info", isPresented: $showVersionAlert) {
+            Button("OK") {}
+        } message: {
+            Text(watchVersionAlertString)
+        }
+    }
+
+    // MARK: - Version helpers
+
+    /// "v0.9 (2)" — tiny label shown at the bottom of the list.
+    private var watchVersionString: String {
+        let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        return "v\(v) (\(b))"
+    }
+
+    /// Full build details shown in the alert after 5 taps.
+    private var watchVersionAlertString: String {
+        let v      = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let b      = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        let commit = Bundle.main.object(forInfoDictionaryKey: "GitCommit") as? String ?? "unknown"
+        return "v\(v) build \(b)\n\(commit)"
     }
 }
 

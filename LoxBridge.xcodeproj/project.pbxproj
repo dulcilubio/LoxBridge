@@ -136,6 +136,7 @@
 				031385C22F826AD300C08142 /* Sources */,
 				031385C32F826AD300C08142 /* Frameworks */,
 				031385C42F826AD300C08142 /* Resources */,
+				03B1B2B32FCC0001000A0002 /* Inject Git Commit */,
 			);
 			buildRules = (
 			);
@@ -182,6 +183,7 @@
 				03BAA9B22F646CB1007C405A /* Frameworks */,
 				03BAA9B32F646CB1007C405A /* Resources */,
 				031385D42F826AD400C08142 /* Embed Watch Content */,
+				03B1B2B32FCC0001000A0001 /* Inject Git Commit */,
 			);
 			buildRules = (
 			);
@@ -297,6 +299,47 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		03B1B2B32FCC0001000A0001 /* Inject Git Commit (iPhone) */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Inject Git Commit";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "GIT_COMMIT=$(git -C \"${SRCROOT}\" rev-parse --short HEAD 2>/dev/null || echo \"unknown\")\nINFO=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n/usr/libexec/PlistBuddy -c \"Add :GitCommit string $GIT_COMMIT\" \"$INFO\" 2>/dev/null || /usr/libexec/PlistBuddy -c \"Set :GitCommit $GIT_COMMIT\" \"$INFO\"\n";
+		};
+		03B1B2B32FCC0001000A0002 /* Inject Git Commit (Watch) */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Inject Git Commit";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "GIT_COMMIT=$(git -C \"${SRCROOT}\" rev-parse --short HEAD 2>/dev/null || echo \"unknown\")\nINFO=\"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\"\n/usr/libexec/PlistBuddy -c \"Add :GitCommit string $GIT_COMMIT\" \"$INFO\" 2>/dev/null || /usr/libexec/PlistBuddy -c \"Set :GitCommit $GIT_COMMIT\" \"$INFO\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXTargetDependency section */
 		031385CF2F826AD400C08142 /* PBXTargetDependency */ = {
