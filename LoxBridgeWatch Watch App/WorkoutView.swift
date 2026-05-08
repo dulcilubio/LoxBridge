@@ -39,11 +39,23 @@ struct WorkoutView: View {
                     .foregroundStyle(.green)
                 Text("Orienteering!")
                     .font(.headline)
-                Button("Start") {
+                if wm.locationAuthStatus == .denied || wm.locationAuthStatus == .restricted {
+                    Label("Location access needed", systemImage: "location.slash")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
+                Button {
                     Task { await wm.start() }
+                } label: {
+                    if wm.isStarting {
+                        ProgressView()
+                    } else {
+                        Text("Start")
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
+                .disabled(wm.isStarting)
             }
 
             // GPS accuracy indicator — icon only, no text.

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var store: WatchSessionManager
+    @ObservedObject private var wm = WorkoutManager.shared
 
     // MARK: - Version easter egg (tap build info 5× to see full commit hash)
     @State private var versionTapCount = 0
@@ -74,6 +75,16 @@ struct ContentView: View {
             Button("OK") {}
         } message: {
             Text(watchVersionAlertString)
+        }
+        // MARK: Partial route recovery
+        .confirmationDialog(
+            "Incomplete recording found",
+            isPresented: Binding(get: { wm.hasPartialRecovery }, set: { if !$0 { wm.discardPartialRoute() } })
+        ) {
+            Button("Upload partial route") { wm.recoverPartialRoute() }
+            Button("Discard", role: .destructive) { wm.discardPartialRoute() }
+        } message: {
+            Text("A recording was interrupted. Send the partial route to Livelox?")
         }
     }
 

@@ -13,6 +13,7 @@ final class AppViewModel: ObservableObject {
     @Published var liveloxAccountName: String = "Not connected"
     @Published var importStatus: String = "No import status yet"
     @Published var recentRoutes: [RouteMetadata] = []
+    @Published var pendingConfirmationRoute: RouteMetadata? = nil
 
     private let healthKitManager = HealthKitManager.shared
     private let oauthManager = OAuthManager.shared
@@ -27,6 +28,7 @@ final class AppViewModel: ObservableObject {
                 guard let self else { return }
                 self.recentRoutes = StorageManager.shared.recentRoutes(limit: 50)
                 self.importStatus = StorageManager.shared.lastImportStatus()
+                self.pendingConfirmationRoute = StorageManager.shared.pendingConfirmationRoutes().first
             }
         await refreshStatus()
         isInitialized = true
@@ -87,6 +89,8 @@ final class AppViewModel: ObservableObject {
         oauthManager.logout()
         UserDefaults.standard.removeObject(forKey: "minWorkoutDistanceKm")
         UserDefaults.standard.removeObject(forKey: "minWorkoutDurationSecs")
+        UserDefaults.standard.removeObject(forKey: "uploadFitnessAppRoutes")
+        UserDefaults.standard.removeObject(forKey: "askBeforeUpload")
         UserDefaults.standard.removeObject(forKey: "onboardingCompleted")
         lastError = nil
         await refreshStatus()
@@ -115,6 +119,7 @@ final class AppViewModel: ObservableObject {
         importStatus = StorageManager.shared.lastImportStatus()
         _ = StorageManager.shared.pruneMissingRoutes()
         recentRoutes = StorageManager.shared.recentRoutes(limit: 50)
+        pendingConfirmationRoute = StorageManager.shared.pendingConfirmationRoutes().first
 
         if oauthManager.isAuthorized {
             if let cached = oauthManager.cachedUserInfo() {
@@ -149,6 +154,21 @@ final class AppViewModel: ObservableObject {
         }
         WatchSessionManager.shared.syncStatus()
         await refreshStatus()
+    }
+
+    func confirmUpload(workoutUUID: UUID) async {
+        StorageManager.shared.clearPendingConfirmation(workoutUUID: workoutUUID)
+        pendingConfirmationRoute = StorageManager.shared.pendingConfirmationRoutes().first
+        do {
+            try await LiveloxUploader.shared.upload(workoutUUID: workoutUUID)
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    func skipUpload(workoutUUID: UUID) {
+        StorageManager.shared.clearPendingConfirmation(workoutUUID: workoutUUID)
+        pendingConfirmationRoute = StorageManager.shared.pendingConfirmationRoutes().first
     }
 
     /// Merges two saved routes into one combined GPX file.
@@ -205,9 +225,13 @@ final class AppViewModel: ObservableObject {
 
         NotificationCenter.default.post(name: .routeListChanged, object: nil)
 
-        // Auto-upload if Livelox is connected.
         if OAuthManager.shared.isAuthorized {
-            try await LiveloxUploader.shared.upload(workoutUUID: metadata.workoutUUID)
+            if UserDefaults.standard.bool(forKey: "askBeforeUpload") {
+                StorageManager.shared.markPendingConfirmation(workoutUUID: metadata.workoutUUID)
+                pendingConfirmationRoute = StorageManager.shared.pendingConfirmationRoutes().first
+            } else {
+                try await LiveloxUploader.shared.upload(workoutUUID: metadata.workoutUUID)
+            }
         }
         await refreshStatus()
     }
@@ -306,12 +330,17 @@ final class AppViewModel: ObservableObject {
             WatchSessionManager.shared.sendWithPoints(payload: watchPayload)
 
             if OAuthManager.shared.hasTokens {
-                await NotificationManager.shared.scheduleAutoUploadStarted()
-                do {
-                    try await LiveloxUploader.shared.upload(workoutUUID: workoutUUID)
-                } catch {
-                    lastError = error.localizedDescription
-                    await NotificationManager.shared.scheduleUploadFailure(error: error)
+                if UserDefaults.standard.bool(forKey: "askBeforeUpload") {
+                    StorageManager.shared.markPendingConfirmation(workoutUUID: workoutUUID)
+                    pendingConfirmationRoute = StorageManager.shared.pendingConfirmationRoutes().first
+                } else {
+                    await NotificationManager.shared.scheduleAutoUploadStarted()
+                    do {
+                        try await LiveloxUploader.shared.upload(workoutUUID: workoutUUID)
+                    } catch {
+                        lastError = error.localizedDescription
+                        await NotificationManager.shared.scheduleUploadFailure(error: error)
+                    }
                 }
             } else {
                 await NotificationManager.shared.scheduleAutoUploadNeedsAuth()

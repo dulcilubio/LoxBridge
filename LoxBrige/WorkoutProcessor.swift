@@ -55,6 +55,15 @@ final class WorkoutProcessor {
         max(0, UserDefaults.standard.double(forKey: "minWorkoutDurationSecs"))
     }
 
+    private var uploadFitnessAppRoutes: Bool {
+        guard UserDefaults.standard.object(forKey: "uploadFitnessAppRoutes") != nil else { return true }
+        return UserDefaults.standard.bool(forKey: "uploadFitnessAppRoutes")
+    }
+
+    private var askBeforeUpload: Bool {
+        UserDefaults.standard.bool(forKey: "askBeforeUpload")
+    }
+
     private init() {}
 
     /// Builds a human-readable device description from the HealthKit workout metadata.
@@ -247,7 +256,9 @@ final class WorkoutProcessor {
             }
         }
 
-        if OAuthManager.shared.hasTokens {
+        if askBeforeUpload && OAuthManager.shared.hasTokens {
+            storageManager.markPendingConfirmation(workoutUUID: metadata.workoutUUID)
+        } else if OAuthManager.shared.hasTokens {
             await NotificationManager.shared.scheduleAutoUploadStarted()
             do {
                 try await LiveloxUploader.shared.upload(workoutUUID: metadata.workoutUUID)
@@ -270,6 +281,17 @@ final class WorkoutProcessor {
         // Skip workout types that don't produce GPS routes (indoor, gym, etc.).
         guard workout.workoutActivityType.isOutdoorActivity else {
             AppLogger.workout.info("Skipping non-outdoor workout type \(workout.workoutActivityType.rawValue): \(workoutUUID.uuidString)")
+            storageManager.markProcessed(workoutUUID: workoutUUID)
+            return
+        }
+
+        // LoxBridge Watch app routes always pass. Apple Fitness routes pass only when
+        // the toggle is on. Everything else (third-party apps) is always filtered out.
+        let bundleID = workout.sourceRevision.source.bundleIdentifier
+        let isLoxBridgeRoute = bundleID == "se.erikfrick.loxbridge.watchkitapp"
+        let isFitnessAppRoute = bundleID.hasPrefix("com.apple.")
+        guard isLoxBridgeRoute || (uploadFitnessAppRoutes && isFitnessAppRoute) else {
+            AppLogger.workout.info("Workout filtered by upload type: \(workoutUUID.uuidString)")
             storageManager.markProcessed(workoutUUID: workoutUUID)
             return
         }
@@ -354,7 +376,9 @@ final class WorkoutProcessor {
             }
         }
 
-        if OAuthManager.shared.hasTokens {
+        if askBeforeUpload && OAuthManager.shared.hasTokens {
+            storageManager.markPendingConfirmation(workoutUUID: metadata.workoutUUID)
+        } else if OAuthManager.shared.hasTokens {
             await NotificationManager.shared.scheduleAutoUploadStarted()
             do {
                 try await LiveloxUploader.shared.upload(workoutUUID: metadata.workoutUUID)

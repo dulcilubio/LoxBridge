@@ -43,7 +43,7 @@ struct HomeView: View {
                 .tint(.accentColor)
 
                 // Recording hint
-                Label("To record, open the **Workout** app on your Apple Watch and choose Outdoor Run", systemImage: "applewatch")
+                Label("To record, open the **LoxBridge** app or the **Workout** app on your Apple Watch and choose Outdoor Run", systemImage: "applewatch")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

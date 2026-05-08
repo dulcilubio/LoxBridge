@@ -16,6 +16,7 @@ struct ContentView: View {
     /// The model is owned at the app level and shared with OnboardingView.
     @ObservedObject var model: AppViewModel
     @State private var selectedTab: Tab = .home
+    @State private var showUploadConfirm = false
     @Environment(\.scenePhase) private var scenePhase
     /// Mirrors the `onboardingCompleted` AppStorage key so the fullScreenCover
     /// reacts when `factoryReset()` clears the key.
@@ -50,6 +51,21 @@ struct ContentView: View {
             set: { _ in }               // dismissed only by completing onboarding
         )) {
             OnboardingView(model: model)
+        }
+        // Upload confirmation alert — requires explicit Yes/No when "Ask before uploading" is on.
+        .onChange(of: model.pendingConfirmationRoute?.workoutUUID) { _, newID in
+            showUploadConfirm = (newID != nil)
+        }
+        .alert(
+            "Upload to Livelox?",
+            isPresented: $showUploadConfirm,
+            presenting: model.pendingConfirmationRoute
+        ) { route in
+            Button("Upload") { Task { await model.confirmUpload(workoutUUID: route.workoutUUID) } }
+            Button("Not now", role: .cancel) { model.skipUpload(workoutUUID: route.workoutUUID) }
+        } message: { route in
+            let name = route.locationName ?? route.activityTypeName ?? "this activity"
+            Text("Do you want to upload \(name) to Livelox?")
         }
     }
 }

@@ -2,6 +2,7 @@ import Combine
 import HealthKit
 import CoreLocation
 import WatchConnectivity
+import WatchKit
 import OSLog
 
 private let logger = Logger(subsystem: "se.erikfrick.loxbridge", category: "workout")
@@ -32,6 +33,9 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// Set to true by ContentView's "Start Workout" button so WorkoutView is shown
     /// before start() is called; cleared by reset() when the user taps Done.
     @Published var isWorkoutOpen = false
+    @Published var hasPartialRecovery = false
+    @Published var isStarting = false
+    @Published var locationAuthStatus: CLAuthorizationStatus = CLLocationManager().authorizationStatus
 
     private let healthStore  = HKHealthStore()
     private var session:     HKWorkoutSession?
@@ -54,9 +58,13 @@ final class WorkoutManager: NSObject, ObservableObject {
     /// Sent to iPhone via WCSession.transferFile() at stop() so the route
     /// appears in LoxBridge immediately, without waiting for HealthKit sync.
     private var allRecordedLocations: [CLLocation] = []
+    private var partialSessionUUID: UUID = UUID()
+    private var persistTimer: Timer?
+    private var partialRecoveryURLs: [URL] = []
 
     private override init() {
         super.init()
+        checkForPartialRecovery()
         startIdleLocationUpdates()
     }
 
@@ -79,7 +87,19 @@ final class WorkoutManager: NSObject, ObservableObject {
     // MARK: - Public API
 
     func start() async {
-        stopIdleLocationUpdates() // idle GPS monitor no longer needed during workout
+        let status = idleLocationMgr?.authorizationStatus ?? CLLocationManager().authorizationStatus
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else {
+            if status == .notDetermined {
+                idleLocationMgr?.requestWhenInUseAuthorization()
+                errorMessage = "Allow location access when prompted, then try again."
+            } else {
+                errorMessage = "Location access is required. Enable it in Settings → Privacy & Security → Location Services → LoxBridge on your iPhone."
+            }
+            return
+        }
+        isStarting = true
+        defer { isStarting = false }
+        stopIdleLocationUpdates()
         do {
             try await requestAuthorization()
             try await beginSession()
@@ -102,6 +122,8 @@ final class WorkoutManager: NSObject, ObservableObject {
         state = .finished
 
         stopDisplayTimer()
+        persistTimer?.invalidate()
+        persistTimer = nil
         isRouteRecording = false
         locationMgr?.stopUpdatingLocation()
 
@@ -139,6 +161,7 @@ final class WorkoutManager: NSObject, ObservableObject {
             // the HealthKit workout, so the HealthKit observer path will skip it
             // automatically once this direct transfer has been processed.
             sendDirectTransfer(workout: workout)
+            try? FileManager.default.removeItem(at: partialRouteURL)
 
         } catch {
             logger.error("stop() failed: \(error.localizedDescription)")
@@ -223,6 +246,8 @@ final class WorkoutManager: NSObject, ObservableObject {
         state                = .idle
         isWorkoutOpen        = false
         allRecordedLocations = []
+        persistTimer?.invalidate()
+        persistTimer = nil
         // Restart idle GPS monitor so the accuracy icon is live again.
         startIdleLocationUpdates()
     }
@@ -266,9 +291,15 @@ final class WorkoutManager: NSObject, ObservableObject {
             }
         }
 
+        partialSessionUUID = UUID()
         isRouteRecording = true   // must be set before startLocationUpdates()
         startLocationUpdates()
         startDisplayTimer()
+        persistTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+            DispatchQueue.main.async { [weak self] in
+                self?.savePartialRoute()
+            }
+        }
     }
 
     private func startLocationUpdates() {
@@ -296,6 +327,82 @@ final class WorkoutManager: NSObject, ObservableObject {
     private func stopDisplayTimer() {
         displayTimer?.invalidate()
         displayTimer = nil
+    }
+
+    // MARK: - Partial route persistence
+
+    private var partialRouteURL: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("partial_route_\(partialSessionUUID.uuidString).json")
+    }
+
+    private func savePartialRoute() {
+        guard !allRecordedLocations.isEmpty else { return }
+        let points: [[Double]] = allRecordedLocations.map { loc in
+            [loc.coordinate.latitude,
+             loc.coordinate.longitude,
+             loc.timestamp.timeIntervalSince1970,
+             max(0, loc.speed),
+             loc.horizontalAccuracy]
+        }
+        let startTime = allRecordedLocations.first?.timestamp.timeIntervalSince1970 ?? Date().timeIntervalSince1970
+        let transfer = WatchGPSTransfer(
+            workoutUUID: partialSessionUUID.uuidString,
+            startDate: startTime,
+            durationSeconds: Double(elapsedSeconds),
+            distanceMeters: distanceMeters,
+            activityTypeName: "Running",
+            deviceName: WKInterfaceDevice.current().name,
+            points: points
+        )
+        do {
+            let data = try JSONEncoder().encode(transfer)
+            try data.write(to: partialRouteURL)
+        } catch {
+            logger.error("Failed to save partial route: \(error.localizedDescription)")
+        }
+    }
+
+    private func checkForPartialRecovery() {
+        let docDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        guard let files = try? FileManager.default.contentsOfDirectory(at: docDir, includingPropertiesForKeys: nil) else { return }
+        let partialFiles = files.filter { $0.lastPathComponent.hasPrefix("partial_route_") }
+        partialRecoveryURLs = partialFiles
+        hasPartialRecovery = !partialFiles.isEmpty
+        if !partialFiles.isEmpty {
+            logger.info("Found \(partialFiles.count) partial route file(s) for recovery")
+        }
+    }
+
+    func recoverPartialRoute() {
+        guard let url = partialRecoveryURLs.first else { return }
+        guard WCSession.isSupported(), WCSession.default.activationState == .activated else {
+            logger.warning("WCSession not ready — try again in a moment")
+            return
+        }
+        do {
+            let tmpURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(url.lastPathComponent)
+            if FileManager.default.fileExists(atPath: tmpURL.path) {
+                try FileManager.default.removeItem(at: tmpURL)
+            }
+            try FileManager.default.copyItem(at: url, to: tmpURL)
+            WCSession.default.transferFile(tmpURL, metadata: ["type": "WatchGPSTransfer"])
+            try? FileManager.default.removeItem(at: url)
+            partialRecoveryURLs.removeFirst()
+            hasPartialRecovery = !partialRecoveryURLs.isEmpty
+            logger.info("Recovery transfer queued: \(url.lastPathComponent)")
+        } catch {
+            logger.error("Recovery transfer failed: \(error.localizedDescription)")
+        }
+    }
+
+    func discardPartialRoute() {
+        for url in partialRecoveryURLs {
+            try? FileManager.default.removeItem(at: url)
+        }
+        partialRecoveryURLs = []
+        hasPartialRecovery = false
     }
 }
 
@@ -341,6 +448,11 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
 // MARK: - CLLocationManagerDelegate
 
 extension WorkoutManager: CLLocationManagerDelegate {
+    nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        Task { @MainActor [weak self] in self?.locationAuthStatus = status }
+    }
+
     nonisolated func locationManager(_ manager: CLLocationManager,
                                      didUpdateLocations locations: [CLLocation]) {
         guard let latest = locations.last else { return }

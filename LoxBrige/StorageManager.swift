@@ -31,6 +31,9 @@ struct RouteMetadata: Codable {
     var eventName: String?
     /// Livelox class name returned from the import status poll, if available.
     var className: String?
+    /// True while the route is waiting for the user to confirm before uploading to Livelox.
+    /// Set when "Ask before uploading" is on; cleared when the user taps Upload or Skip.
+    var pendingConfirmation: Bool = false
 }
 
 final class StorageManager {
@@ -128,7 +131,36 @@ final class StorageManager {
     }
 
     func pendingUploads() -> [RouteMetadata] {
-        queue.sync { loadAllMetadata().filter { !$0.uploaded } }
+        // Exclude routes waiting for explicit user confirmation — they must not be auto-uploaded.
+        queue.sync { loadAllMetadata().filter { !$0.uploaded && !$0.pendingConfirmation } }
+    }
+
+    func markPendingConfirmation(workoutUUID: UUID) {
+        queue.sync {
+            var metadata = loadAllMetadata()
+            guard let index = metadata.firstIndex(where: { $0.workoutUUID == workoutUUID }) else { return }
+            metadata[index].pendingConfirmation = true
+            metadata[index].importStatus = "Waiting for confirmation"
+            metadata[index].importStatusUpdatedAt = Date()
+            saveAllMetadata(metadata)
+        }
+    }
+
+    func clearPendingConfirmation(workoutUUID: UUID) {
+        queue.sync {
+            var metadata = loadAllMetadata()
+            guard let index = metadata.firstIndex(where: { $0.workoutUUID == workoutUUID }) else { return }
+            metadata[index].pendingConfirmation = false
+            saveAllMetadata(metadata)
+        }
+    }
+
+    func pendingConfirmationRoutes() -> [RouteMetadata] {
+        queue.sync {
+            loadAllMetadata()
+                .filter { $0.pendingConfirmation }
+                .sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
+        }
     }
 
     /// Routes that have been uploaded but whose Livelox import status has not yet

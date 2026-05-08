@@ -5,9 +5,11 @@ import UserNotifications
 struct SettingsView: View {
     @ObservedObject var model: AppViewModel
     @Environment(\.openURL) private var openURL
-    @AppStorage("minWorkoutDistanceKm")   private var minWorkoutDistanceKm:   Double = 0
-    @AppStorage("minWorkoutDurationSecs") private var minWorkoutDurationSecs: Double = 0
-    @AppStorage("notifyOnUploadStarted")  private var notifyOnUploadStarted:  Bool = false
+    @AppStorage("minWorkoutDistanceKm")      private var minWorkoutDistanceKm:      Double = 0
+    @AppStorage("minWorkoutDurationSecs")    private var minWorkoutDurationSecs:    Double = 0
+    @AppStorage("uploadFitnessAppRoutes")    private var uploadFitnessAppRoutes:    Bool   = true
+    @AppStorage("askBeforeUpload")           private var askBeforeUpload:           Bool   = false
+    @AppStorage("notifyOnUploadStarted")     private var notifyOnUploadStarted:     Bool   = false
     @AppStorage("notifyOnUploadFailed")   private var notifyOnUploadFailed:   Bool = false
     @AppStorage("notifyOnUploadComplete") private var notifyOnUploadComplete: Bool = true
 
@@ -88,8 +90,13 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                         }
                     }
+                    Toggle("Apple Fitness routes", isOn: $uploadFitnessAppRoutes)
+                    Toggle("Ask before uploading", isOn: $askBeforeUpload)
                 } header: {
-                    Text("Filters")
+                    Text("Filters and Upload")
+                } footer: {
+                    Text("All routes recorded with the LoxBridge Watch app are always sent to Livelox. Enable \"Apple Fitness routes\" to also upload activities from Apple's built-in Workout app. Third-party apps (Strava, etc.) are not included.")
+                        .font(.caption)
                 }
 
                 // MARK: Notifications
