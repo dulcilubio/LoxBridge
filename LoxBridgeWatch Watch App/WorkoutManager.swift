@@ -86,7 +86,9 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     // MARK: - Public API
 
-    func start() async {
+    /// Non-async: stores the Task internally so cancelStart() can cancel it.
+    func start() {
+        guard !isStarting else { return }
         let status = idleLocationMgr?.authorizationStatus ?? CLLocationManager().authorizationStatus
         guard status == .authorizedWhenInUse || status == .authorizedAlways else {
             if status == .notDetermined {
@@ -98,14 +100,50 @@ final class WorkoutManager: NSObject, ObservableObject {
             return
         }
         isStarting = true
-        defer { isStarting = false }
         stopIdleLocationUpdates()
-        do {
-            try await requestAuthorization()
-            try await beginSession()
-        } catch {
-            errorMessage = error.localizedDescription
+        startTask = Task {
+            defer {
+                isStarting = false
+                startTask = nil
+            }
+            do {
+                // Race the actual start against a 15-second timeout so we never
+                // get permanently stuck if HealthKit authorization hangs.
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    group.addTask {
+                        try await self.requestAuthorization()
+                        try Task.checkCancellation()   // don't open session if cancelled
+                        try await self.beginSession()
+                    }
+                    group.addTask {
+                        try await Task.sleep(for: .seconds(15))
+                        throw StartTimeoutError()
+                    }
+                    try await group.next()!
+                    group.cancelAll()
+                }
+            } catch is CancellationError {
+                // Cancelled via cancelStart() — no error message, just restore idle GPS.
+                startIdleLocationUpdates()
+            } catch {
+                errorMessage = error.localizedDescription
+                startIdleLocationUpdates()
+            }
         }
+    }
+
+    /// Cancels an in-progress start() and returns to the idle screen.
+    func cancelStart() {
+        startTask?.cancel()
+        startTask = nil
+        isStarting = false
+        startIdleLocationUpdates()
+    }
+
+    private var startTask: Task<Void, Never>?
+
+    private struct StartTimeoutError: LocalizedError {
+        var errorDescription: String? { "Could not start — HealthKit timed out. Please try again." }
     }
 
     func togglePause() {

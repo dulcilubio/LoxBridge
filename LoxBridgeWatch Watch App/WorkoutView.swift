@@ -45,7 +45,7 @@ struct WorkoutView: View {
                         .foregroundStyle(.orange)
                 }
                 Button {
-                    Task { await wm.start() }
+                    wm.start()
                 } label: {
                     if wm.isStarting {
                         ProgressView()
@@ -56,6 +56,12 @@ struct WorkoutView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
                 .disabled(wm.isStarting)
+
+                if wm.isStarting {
+                    Button("Cancel") { wm.cancelStart() }
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             // GPS accuracy indicator — icon only, no text.
