@@ -123,7 +123,12 @@ final class WorkoutManager: NSObject, ObservableObject {
                     group.cancelAll()
                 }
             } catch is CancellationError {
-                // Cancelled via cancelStart() — no error message, just restore idle GPS.
+                // Cancelled via cancelStart() — silent reset, return to idle.
+                startIdleLocationUpdates()
+            } catch is StartTimeoutError {
+                // HealthKit didn't respond in time — silently reset so the user
+                // can tap Start again, which will re-request authorization.
+                logger.warning("start() timed out — resetting to idle for retry")
                 startIdleLocationUpdates()
             } catch {
                 errorMessage = error.localizedDescription
