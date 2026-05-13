@@ -33,7 +33,9 @@ struct RouteMetadata: Codable {
     var className: String?
     /// True while the route is waiting for the user to confirm before uploading to Livelox.
     /// Set when "Ask before uploading" is on; cleared when the user taps Upload or Skip.
-    var pendingConfirmation: Bool = false
+    /// Optional so that stored JSON written before this field existed decodes without error —
+    /// synthesised Codable does NOT apply default values for missing non-optional keys.
+    var pendingConfirmation: Bool?
 }
 
 final class StorageManager {
@@ -132,7 +134,7 @@ final class StorageManager {
 
     func pendingUploads() -> [RouteMetadata] {
         // Exclude routes waiting for explicit user confirmation — they must not be auto-uploaded.
-        queue.sync { loadAllMetadata().filter { !$0.uploaded && !$0.pendingConfirmation } }
+        queue.sync { loadAllMetadata().filter { !$0.uploaded && $0.pendingConfirmation != true } }
     }
 
     func markPendingConfirmation(workoutUUID: UUID) {
@@ -158,7 +160,7 @@ final class StorageManager {
     func pendingConfirmationRoutes() -> [RouteMetadata] {
         queue.sync {
             loadAllMetadata()
-                .filter { $0.pendingConfirmation }
+                .filter { $0.pendingConfirmation == true }
                 .sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }
         }
     }
