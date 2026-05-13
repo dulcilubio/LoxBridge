@@ -130,8 +130,34 @@ final class WatchSessionManager: NSObject, WCSessionDelegate {
         WCSession.default.activate()
     }
 
+    /// Receives GPS data sent from the Watch app via sendMessageData() when the
+    /// session is reachable. This is the primary delivery path — faster and more
+    /// reliable than transferFile, and the only one that works in the simulator.
+    func session(_ session: WCSession,
+                 didReceiveMessageData messageData: Data,
+                 replyHandler: @escaping (Data) -> Void) {
+        AppLogger.upload.info("WatchSessionManager: didReceiveMessageData, \(messageData.count) bytes")
+        replyHandler(Data()) // acknowledge immediately so Watch errorHandler doesn't fire
+
+        var bgTaskID: UIBackgroundTaskIdentifier = .invalid
+        bgTaskID = UIApplication.shared.beginBackgroundTask(withName: "WatchGPSMessage") {
+            AppLogger.workout.warning("WatchGPSMessage background task expired")
+            UIApplication.shared.endBackgroundTask(bgTaskID)
+        }
+
+        Task {
+            defer { UIApplication.shared.endBackgroundTask(bgTaskID) }
+            do {
+                let transfer = try JSONDecoder().decode(WatchGPSTransfer.self, from: messageData)
+                try await WorkoutProcessor.shared.processDirectTransfer(transfer)
+            } catch {
+                AppLogger.workout.error("GPS message processing failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
     /// Receives GPS transfer files sent from the Watch app via transferFile().
-    /// Processes the workout immediately, bypassing the HealthKit sync delay.
+    /// Fallback path used when the iPhone was not reachable at workout end.
     /// Called on an arbitrary background thread by WatchConnectivity — even when
     /// the iPhone app is suspended, the system wakes it to deliver the file.
     func session(_ session: WCSession, didReceive file: WCSessionFile) {

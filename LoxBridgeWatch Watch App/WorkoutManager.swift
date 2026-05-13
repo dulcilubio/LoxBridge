@@ -211,13 +211,24 @@ final class WorkoutManager: NSObject, ObservableObject {
 
         do {
             let data = try JSONEncoder().encode(transfer)
-            let tmpURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("gps_\(workout.uuid.uuidString).json")
-            try data.write(to: tmpURL)
-            let fileTransfer = WCSession.default.transferFile(tmpURL, metadata: ["type": "WatchGPSTransfer"])
-            logger.info("GPS transfer queued: \(points.count) points for \(workout.uuid.uuidString), isTransferring=\(fileTransfer.isTransferring)")
+            if wcs.isReachable {
+                // iPhone is reachable — use sendMessageData for immediate in-memory delivery.
+                // This works in both simulator and foreground/background scenarios on device.
+                // transferFile is a background-only mechanism and is not delivered while both
+                // apps are actively running (and is unreliable in the simulator entirely).
+                wcs.sendMessageData(data, replyHandler: { _ in
+                    self.logger.info("GPS sendMessageData acknowledged by iPhone: \(transfer.workoutUUID)")
+                }, errorHandler: { error in
+                    self.logger.warning("GPS sendMessageData failed (\(error.localizedDescription)) — falling back to transferFile")
+                    self.queueFileTransfer(data: data, uuid: transfer.workoutUUID)
+                })
+                logger.info("GPS sent via sendMessageData: \(points.count) points for \(workout.uuid.uuidString)")
+            } else {
+                // iPhone not reachable — queue via transferFile for background delivery.
+                queueFileTransfer(data: data, uuid: workout.uuid.uuidString)
+            }
         } catch {
-            logger.error("Failed to queue GPS transfer: \(error.localizedDescription)")
+            logger.error("Failed to encode GPS transfer: \(error.localizedDescription)")
         }
 
         // Insert a provisional route entry on the Watch immediately so the user
@@ -236,6 +247,20 @@ final class WorkoutManager: NSObject, ObservableObject {
             speeds:           nil
         )
         WatchSessionManager.shared.insertProvisionalRoute(provisional)
+    }
+
+    /// Writes `data` to a temp file and queues it via WCSession.transferFile.
+    /// Used when the iPhone is not currently reachable (background delivery).
+    private func queueFileTransfer(data: Data, uuid: String) {
+        do {
+            let tmpURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("gps_\(uuid).json")
+            try data.write(to: tmpURL)
+            let ft = WCSession.default.transferFile(tmpURL, metadata: ["type": "WatchGPSTransfer"])
+            logger.info("GPS queued via transferFile: \(uuid), isTransferring=\(ft.isTransferring)")
+        } catch {
+            logger.error("Failed to queue GPS file transfer: \(error.localizedDescription)")
+        }
     }
 
     func reset() {
@@ -418,7 +443,10 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
                                     didChangeTo toState: HKWorkoutSessionState,
                                     from: HKWorkoutSessionState,
                                     date: Date) {
-        Task { @MainActor [weak self] in
+        // DispatchQueue.main.async always defers to the next run loop iteration,
+        // preventing "Publishing changes from within view updates" faults that
+        // Task { @MainActor in } can cause by executing synchronously.
+        DispatchQueue.main.async { [weak self] in
             switch toState {
             case .running: self?.state = .active
             case .paused:  self?.state = .paused
@@ -429,7 +457,7 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
 
     nonisolated func workoutSession(_ session: HKWorkoutSession,
                                     didFailWithError error: Error) {
-        Task { @MainActor [weak self] in
+        DispatchQueue.main.async { [weak self] in
             self?.errorMessage = error.localizedDescription
         }
     }
@@ -444,7 +472,7 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
         let meters = workoutBuilder
             .statistics(for: HKQuantityType(.distanceWalkingRunning))?
             .sumQuantity()?.doubleValue(for: .meter()) ?? 0
-        Task { @MainActor [weak self] in self?.distanceMeters = meters }
+        DispatchQueue.main.async { [weak self] in self?.distanceMeters = meters }
     }
 
     nonisolated func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
@@ -455,14 +483,14 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
 extension WorkoutManager: CLLocationManagerDelegate {
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
-        Task { @MainActor [weak self] in self?.locationAuthStatus = status }
+        DispatchQueue.main.async { [weak self] in self?.locationAuthStatus = status }
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager,
                                      didUpdateLocations locations: [CLLocation]) {
         guard let latest = locations.last else { return }
 
-        Task { @MainActor [weak self] in
+        DispatchQueue.main.async { [weak self] in
             guard let self else { return }
 
             // Always update the GPS accuracy indicator for the idle screen,
