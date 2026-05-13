@@ -73,7 +73,14 @@ final class WatchSessionManager: NSObject, ObservableObject, WCSessionDelegate {
         _ session: WCSession,
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
-    ) {}
+    ) {
+        if let error {
+            // Using print because OSLog isn't available nonisolated without importing OSLog.
+            print("[WatchSessionManager] Activation failed: \(error.localizedDescription)")
+        } else {
+            print("[WatchSessionManager] Activated, state=\(activationState.rawValue), isReachable=\(session.isReachable)")
+        }
+    }
 
     // MARK: - Local persistence
 

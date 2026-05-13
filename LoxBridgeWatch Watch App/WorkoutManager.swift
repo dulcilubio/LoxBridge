@@ -169,9 +169,14 @@ final class WorkoutManager: NSObject, ObservableObject {
     }
 
     private func sendDirectTransfer(workout: HKWorkout) {
-        guard WCSession.isSupported(),
-              WCSession.default.activationState == .activated else {
-            logger.warning("WCSession not available — iPhone will fall back to HealthKit sync")
+        guard WCSession.isSupported() else {
+            logger.warning("WCSession not supported on this device")
+            return
+        }
+        let wcs = WCSession.default
+        logger.info("WCSession state before transfer — activation: \(wcs.activationState.rawValue), reachable: \(wcs.isReachable), pendingTransfers: \(wcs.outstandingFileTransfers.count)")
+        guard wcs.activationState == .activated else {
+            logger.warning("WCSession not activated (state=\(wcs.activationState.rawValue)) — iPhone will fall back to HealthKit sync")
             return
         }
         guard !allRecordedLocations.isEmpty else {
@@ -209,8 +214,8 @@ final class WorkoutManager: NSObject, ObservableObject {
             let tmpURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent("gps_\(workout.uuid.uuidString).json")
             try data.write(to: tmpURL)
-            WCSession.default.transferFile(tmpURL, metadata: ["type": "WatchGPSTransfer"])
-            logger.info("GPS transfer queued: \(points.count) points for \(workout.uuid.uuidString)")
+            let fileTransfer = WCSession.default.transferFile(tmpURL, metadata: ["type": "WatchGPSTransfer"])
+            logger.info("GPS transfer queued: \(points.count) points for \(workout.uuid.uuidString), isTransferring=\(fileTransfer.isTransferring)")
         } catch {
             logger.error("Failed to queue GPS transfer: \(error.localizedDescription)")
         }

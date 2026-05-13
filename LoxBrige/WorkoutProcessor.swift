@@ -167,12 +167,15 @@ final class WorkoutProcessor {
     /// Uses the same workoutUUID as the HealthKit workout, so the HealthKit observer
     /// path will see it as already processed and skip it automatically (no duplicates).
     func processDirectTransfer(_ transfer: WatchGPSTransfer) async throws {
+        AppLogger.workout.info("processDirectTransfer started: uuid=\(transfer.workoutUUID), points=\(transfer.points.count), duration=\(Int(transfer.durationSeconds))s")
         guard let workoutUUID = UUID(uuidString: transfer.workoutUUID) else {
             AppLogger.workout.error("Invalid UUID in GPS transfer: \(transfer.workoutUUID)")
             return
         }
         guard !storageManager.isProcessed(workoutUUID: workoutUUID) else {
             AppLogger.workout.info("Direct transfer already processed: \(transfer.workoutUUID)")
+            // Push current state so the Watch can replace any stale provisional entry.
+            WatchSessionManager.shared.syncStatus()
             return
         }
 
@@ -191,6 +194,8 @@ final class WorkoutProcessor {
 
         guard !locations.isEmpty else {
             AppLogger.workout.error("Direct transfer has no valid locations: \(transfer.workoutUUID)")
+            // Sync so the Watch drops the "Sending to iPhone…" provisional entry.
+            WatchSessionManager.shared.syncStatus()
             return
         }
 
@@ -200,6 +205,8 @@ final class WorkoutProcessor {
             guard distKm >= minDist else {
                 AppLogger.workout.info("Direct transfer too short (\(String(format: "%.2f", distKm))km): \(transfer.workoutUUID)")
                 storageManager.markProcessed(workoutUUID: workoutUUID)
+                // Sync so the Watch drops the "Sending to iPhone…" provisional entry.
+                WatchSessionManager.shared.syncStatus()
                 return
             }
         }
@@ -209,6 +216,8 @@ final class WorkoutProcessor {
             guard transfer.durationSeconds >= minDur else {
                 AppLogger.workout.info("Direct transfer too brief (\(Int(transfer.durationSeconds))s < \(Int(minDur))s): \(transfer.workoutUUID)")
                 storageManager.markProcessed(workoutUUID: workoutUUID)
+                // Sync so the Watch drops the "Sending to iPhone…" provisional entry.
+                WatchSessionManager.shared.syncStatus()
                 return
             }
         }

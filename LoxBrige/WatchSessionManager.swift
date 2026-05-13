@@ -106,15 +106,27 @@ final class WatchSessionManager: NSObject, WCSessionDelegate {
     func session(_ session: WCSession,
                  activationDidCompleteWith activationState: WCSessionActivationState,
                  error: Error?) {
+        if let error {
+            AppLogger.upload.error("WatchSessionManager: activation failed: \(error.localizedDescription)")
+        } else {
+            AppLogger.upload.info("WatchSessionManager: activated, state=\(activationState.rawValue), paired=\(session.isPaired), watchInstalled=\(session.isWatchAppInstalled), reachable=\(session.isReachable)")
+        }
         if activationState == .activated {
             // Push current cached routes to Watch now that the session is ready
             pushToWatch(loadCachedPayloads())
         }
     }
 
-    func sessionDidBecomeInactive(_ session: WCSession) {}
+    func sessionReachabilityDidChange(_ session: WCSession) {
+        AppLogger.upload.info("WatchSessionManager: reachability changed → \(session.isReachable), pendingFileTransfers=\(session.hasContentPending)")
+    }
+
+    func sessionDidBecomeInactive(_ session: WCSession) {
+        AppLogger.upload.info("WatchSessionManager: session became inactive")
+    }
 
     func sessionDidDeactivate(_ session: WCSession) {
+        AppLogger.upload.info("WatchSessionManager: session deactivated — reactivating")
         WCSession.default.activate()
     }
 
@@ -123,12 +135,20 @@ final class WatchSessionManager: NSObject, WCSessionDelegate {
     /// Called on an arbitrary background thread by WatchConnectivity — even when
     /// the iPhone app is suspended, the system wakes it to deliver the file.
     func session(_ session: WCSession, didReceive file: WCSessionFile) {
-        guard file.metadata?["type"] as? String == "WatchGPSTransfer" else { return }
+        AppLogger.upload.info("WatchSessionManager: didReceive file, metadata=\(String(describing: file.metadata))")
+        guard file.metadata?["type"] as? String == "WatchGPSTransfer" else {
+            AppLogger.upload.info("WatchSessionManager: ignoring file with unexpected type")
+            return
+        }
         AppLogger.workout.info("Received direct GPS transfer from Watch")
 
-        // Capture the file URL immediately — WCSessionFile is only valid until
-        // this delegate method returns on some OS versions.
-        let fileURL = file.fileURL
+        // Read the file synchronously while the delegate still holds it.
+        // WatchConnectivity may move or delete the file the moment this method
+        // returns, so reading it in an async Task (as was done before) is a race.
+        guard let data = try? Data(contentsOf: file.fileURL) else {
+            AppLogger.workout.error("Direct GPS transfer: failed to read file synchronously")
+            return
+        }
 
         // `var` so the expiration handler can reference it by name and end the task.
         var bgTaskID: UIBackgroundTaskIdentifier = .invalid
@@ -145,7 +165,6 @@ final class WatchSessionManager: NSObject, WCSessionDelegate {
         Task {
             defer { UIApplication.shared.endBackgroundTask(bgTaskID) }
             do {
-                let data = try Data(contentsOf: fileURL)
                 let transfer = try JSONDecoder().decode(WatchGPSTransfer.self, from: data)
                 try await WorkoutProcessor.shared.processDirectTransfer(transfer)
             } catch {
