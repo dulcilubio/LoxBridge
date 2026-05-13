@@ -217,9 +217,9 @@ final class WorkoutManager: NSObject, ObservableObject {
                 // transferFile is a background-only mechanism and is not delivered while both
                 // apps are actively running (and is unreliable in the simulator entirely).
                 wcs.sendMessageData(data, replyHandler: { _ in
-                    self.logger.info("GPS sendMessageData acknowledged by iPhone: \(transfer.workoutUUID)")
+                    logger.info("GPS sendMessageData acknowledged by iPhone: \(transfer.workoutUUID)")
                 }, errorHandler: { error in
-                    self.logger.warning("GPS sendMessageData failed (\(error.localizedDescription)) — falling back to transferFile")
+                    logger.warning("GPS sendMessageData failed (\(error.localizedDescription)) — falling back to transferFile")
                     self.queueFileTransfer(data: data, uuid: transfer.workoutUUID)
                 })
                 logger.info("GPS sent via sendMessageData: \(points.count) points for \(workout.uuid.uuidString)")
