@@ -48,8 +48,8 @@ struct ContentView: View {
                         }
                     } label: {
                         Text(watchVersionString)
-                            .font(.system(size: 9))
-                            .foregroundStyle(.quaternary)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .center)
                     }
                     .buttonStyle(.plain)
