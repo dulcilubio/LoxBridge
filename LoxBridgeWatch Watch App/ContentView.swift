@@ -90,11 +90,14 @@ struct ContentView: View {
 
     // MARK: - Version helpers
 
-    /// "v0.9 (2)" — tiny label shown at the bottom of the list.
+    /// "v1.0 (1) · a1b2c3d" — tiny label shown at the bottom of the list.
     private var watchVersionString: String {
-        let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-        let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-        return "v\(v) (\(b))"
+        let v      = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let b      = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        let commit = Bundle.main.object(forInfoDictionaryKey: "GitCommit") as? String ?? ""
+        var s = "v\(v) (\(b))"
+        if !commit.isEmpty { s += " · \(commit)" }
+        return s
     }
 
     /// Full build details shown in the alert after 5 taps.
