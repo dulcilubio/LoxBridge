@@ -100,9 +100,11 @@ struct WorkoutView: View {
             if wm.state == .active {
                 // Hold-to-pause: fill animation left → right over 0.6 s.
                 // A quick accidental tap does nothing — must be held deliberately.
+                // Horizontal padding matches the inset of .borderedProminent system buttons.
                 HoldToActivateButton(icon: "pause.fill", tint: .orange, duration: 0.6) {
                     wm.togglePause()
                 }
+                .padding(.horizontal, 4)
             } else {
                 // Two side-by-side buttons while paused: resume (green) | stop (red)
                 HStack(spacing: 10) {
@@ -256,13 +258,16 @@ private struct HoldToActivateButton: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8)
+            // Base background
+            Rectangle()
                 .fill(tint)
 
-            // Fill overlay that sweeps left → right
+            // Fill overlay sweeps left → right as a plain Rectangle so the
+            // leading edge stays straight while the shape clips the corners.
+            // Higher opacity (0.55 vs old 0.30) gives clear visual feedback.
             GeometryReader { geo in
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.white.opacity(0.30))
+                Rectangle()
+                    .fill(.white.opacity(0.55))
                     .frame(width: geo.size.width * progress)
             }
 
@@ -271,6 +276,8 @@ private struct HoldToActivateButton: View {
                 .foregroundStyle(.white)
         }
         .frame(maxWidth: .infinity, minHeight: 44)
+        // clipShape rounds all corners and clips the fill overlay cleanly
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .onChange(of: pressing) { _, isPressed in
             withAnimation(isPressed
                 ? .linear(duration: duration)
