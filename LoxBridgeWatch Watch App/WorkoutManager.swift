@@ -66,6 +66,12 @@ final class WorkoutManager: NSObject, ObservableObject {
         super.init()
         checkForPartialRecovery()
         startIdleLocationUpdates()
+        // Pre-request HealthKit authorization silently at launch.
+        // On watchOS the user must approve on iPhone, so this runs while
+        // the phone is most likely nearby (just after install / first open).
+        // Subsequent launches where auth is already granted return immediately,
+        // meaning start() works fully offline without needing the iPhone at all.
+        Task { try? await requestAuthorization() }
     }
 
     /// Starts a low-priority CLLocationManager purely to track GPS accuracy on
@@ -111,7 +117,14 @@ final class WorkoutManager: NSObject, ObservableObject {
                 // get permanently stuck if HealthKit authorization hangs.
                 try await withThrowingTaskGroup(of: Void.self) { group in
                     group.addTask {
-                        try await self.requestAuthorization()
+                        // Only request authorization if not yet granted.
+                        // Re-requesting when iPhone is not nearby causes a hang;
+                        // once granted it is remembered and the call returns instantly.
+                        let alreadyAuthorized = self.healthStore
+                            .authorizationStatus(for: .workoutType()) == .sharingAuthorized
+                        if !alreadyAuthorized {
+                            try await self.requestAuthorization()
+                        }
                         try Task.checkCancellation()   // don't open session if cancelled
                         try await self.beginSession()
                     }
@@ -148,7 +161,9 @@ final class WorkoutManager: NSObject, ObservableObject {
     private var startTask: Task<Void, Never>?
 
     private struct StartTimeoutError: LocalizedError {
-        var errorDescription: String? { "Could not start — HealthKit timed out. Please try again." }
+        var errorDescription: String? {
+            "Keep your iPhone nearby and try again — HealthKit authorization requires the companion app."
+        }
     }
 
     func togglePause() {
