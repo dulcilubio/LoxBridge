@@ -66,12 +66,15 @@ final class WorkoutManager: NSObject, ObservableObject {
         super.init()
         checkForPartialRecovery()
         startIdleLocationUpdates()
-        // Pre-request HealthKit authorization silently at launch.
-        // On watchOS the user must approve on iPhone, so this runs while
-        // the phone is most likely nearby (just after install / first open).
-        // Subsequent launches where auth is already granted return immediately,
-        // meaning start() works fully offline without needing the iPhone at all.
-        Task { try? await requestAuthorization() }
+        // Pre-request HealthKit authorization on first launch only.
+        // Guard against HealthKit not being available (should always be true
+        // on Watch, but avoids a potential crash if the daemon isn't ready yet).
+        // Once granted, authorization is permanent — this block never runs
+        // again, and start() works fully offline with no iPhone dependency.
+        if HKHealthStore.isHealthDataAvailable(),
+           healthStore.authorizationStatus(for: .workoutType()) != .sharingAuthorized {
+            Task { try? await requestAuthorization() }
+        }
     }
 
     /// Starts a low-priority CLLocationManager purely to track GPS accuracy on
