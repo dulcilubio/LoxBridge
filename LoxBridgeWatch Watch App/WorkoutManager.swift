@@ -230,14 +230,33 @@ final class WorkoutManager: NSObject, ObservableObject {
     }
 
     private func sendDirectTransfer(workout: HKWorkout) {
+        // Always insert the provisional route entry immediately so the finished
+        // workout appears in the Watch list regardless of WCSession state.
+        // The iPhone will replace it with a real status once it processes the workout.
+        lastFinishedUUID = workout.uuid.uuidString
+        let provisional = WatchRoutePayload(
+            workoutUUID:      workout.uuid.uuidString,
+            status:           "Sending to iPhone\u{2026}",
+            distanceKm:       distanceMeters > 0 ? distanceMeters / 1000.0 : nil,
+            durationSeconds:  workout.duration > 0 ? workout.duration : Double(elapsedSeconds),
+            activityTypeName: "Running",
+            locationName:     nil,
+            createdAt:        workout.startDate.timeIntervalSince1970,
+            points:           [],
+            speeds:           nil
+        )
+        WatchSessionManager.shared.insertProvisionalRoute(provisional)
+        logger.info("Provisional route inserted: \(workout.uuid.uuidString)")
+
+        // --- WCSession transfer ---
         guard WCSession.isSupported() else {
-            logger.warning("WCSession not supported on this device")
+            logger.warning("WCSession not supported — iPhone will get route via HealthKit sync")
             return
         }
         let wcs = WCSession.default
-        logger.info("WCSession state before transfer — activation: \(wcs.activationState.rawValue), reachable: \(wcs.isReachable), pendingTransfers: \(wcs.outstandingFileTransfers.count)")
+        logger.info("WCSession state — activation: \(wcs.activationState.rawValue), reachable: \(wcs.isReachable), pendingTransfers: \(wcs.outstandingFileTransfers.count)")
         guard wcs.activationState == .activated else {
-            logger.warning("WCSession not activated (state=\(wcs.activationState.rawValue)) — iPhone will fall back to HealthKit sync")
+            logger.warning("WCSession not activated (state=\(wcs.activationState.rawValue)) — iPhone will get route via HealthKit sync")
             return
         }
         guard !allRecordedLocations.isEmpty else {
@@ -274,9 +293,6 @@ final class WorkoutManager: NSObject, ObservableObject {
             let data = try JSONEncoder().encode(transfer)
             if wcs.isReachable {
                 // iPhone is reachable — use sendMessageData for immediate in-memory delivery.
-                // This works in both simulator and foreground/background scenarios on device.
-                // transferFile is a background-only mechanism and is not delivered while both
-                // apps are actively running (and is unreliable in the simulator entirely).
                 wcs.sendMessageData(data, replyHandler: { _ in
                     logger.info("GPS sendMessageData acknowledged by iPhone: \(transfer.workoutUUID)")
                 }, errorHandler: { error in
@@ -291,23 +307,6 @@ final class WorkoutManager: NSObject, ObservableObject {
         } catch {
             logger.error("Failed to encode GPS transfer: \(error.localizedDescription)")
         }
-
-        // Insert a provisional route entry on the Watch immediately so the user
-        // sees "Sending to iPhone…" in the list while the transfer is in flight.
-        // The iPhone will replace this entry with a real status once it processes the workout.
-        lastFinishedUUID = workout.uuid.uuidString
-        let provisional = WatchRoutePayload(
-            workoutUUID:      workout.uuid.uuidString,
-            status:           "Sending to iPhone\u{2026}",
-            distanceKm:       distanceMeters > 0 ? distanceMeters / 1000.0 : nil,
-            durationSeconds:  workout.duration > 0 ? workout.duration : Double(elapsedSeconds),
-            activityTypeName: "Running",
-            locationName:     nil,
-            createdAt:        workout.startDate.timeIntervalSince1970,
-            points:           [],
-            speeds:           nil
-        )
-        WatchSessionManager.shared.insertProvisionalRoute(provisional)
     }
 
     /// Writes `data` to a temp file and queues it via WCSession.transferFile.
