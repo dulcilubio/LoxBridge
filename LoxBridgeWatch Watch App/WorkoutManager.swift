@@ -230,6 +230,8 @@ final class WorkoutManager: NSObject, ObservableObject {
     }
 
     private func sendDirectTransfer(workout: HKWorkout) {
+        logger.info("sendDirectTransfer: \(allRecordedLocations.count) GPS point(s) collected for \(workout.uuid.uuidString)")
+
         // Always insert the provisional route entry immediately so the finished
         // workout appears in the Watch list regardless of WCSession state.
         // The iPhone will replace it with a real status once it processes the workout.
@@ -260,7 +262,7 @@ final class WorkoutManager: NSObject, ObservableObject {
             return
         }
         guard !allRecordedLocations.isEmpty else {
-            logger.warning("No recorded locations to transfer")
+            logger.warning("sendDirectTransfer: allRecordedLocations is empty — no GPS data to send. iPhone will rely on HealthKit sync.")
             return
         }
 
@@ -562,10 +564,20 @@ extension WorkoutManager: CLLocationManagerDelegate {
             // Route recording: only feed points from the workout location manager
             // while isRouteRecording is active.
             guard self.isRouteRecording else { return }
-            let accurate = locations.filter { $0.horizontalAccuracy > 0 && $0.horizontalAccuracy < 50 }
-            guard !accurate.isEmpty else { return }
-            self.allRecordedLocations.append(contentsOf: accurate)
-            self.routeBuilder?.insertRouteData(accurate) { _, err in
+
+            // Accept any location with a real GPS fix (horizontalAccuracy > 0).
+            // The old < 50 m threshold silently discarded everything in poor GPS
+            // conditions (forest, canyon, cold-start), leaving allRecordedLocations
+            // empty and producing no route at all. A slightly imprecise route is
+            // far better than no route — Livelox can still show the general path.
+            let valid = locations.filter { $0.horizontalAccuracy > 0 }
+            guard !valid.isEmpty else {
+                logger.debug("Skipping \(locations.count) location(s) — no valid GPS fix yet")
+                return
+            }
+            self.allRecordedLocations.append(contentsOf: valid)
+            logger.debug("Recorded \(valid.count) point(s), total=\(self.allRecordedLocations.count), accuracy=\(String(format: "%.0f", valid.last?.horizontalAccuracy ?? -1))m")
+            self.routeBuilder?.insertRouteData(valid) { _, err in
                 if let err {
                     logger.error("insertRouteData failed: \(err.localizedDescription)")
                 }
