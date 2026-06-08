@@ -189,7 +189,12 @@ final class WorkoutManager: NSObject, ObservableObject {
         locationMgr?.stopUpdatingLocation()
 
         let endDate = Date()
-        session.end()
+        // If the session was already ended externally (e.g. system ring-goal prompt),
+        // skip the redundant call — calling end() on an already-ended session throws
+        // "already Ended" on some watchOS versions and can abort the builder chain.
+        if session.state != .ended {
+            session.end()
+        }
 
         do {
             try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
@@ -509,10 +514,19 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
         // preventing "Publishing changes from within view updates" faults that
         // Task { @MainActor in } can cause by executing synchronously.
         DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
             switch toState {
-            case .running: self?.state = .active
-            case .paused:  self?.state = .paused
-            default:       break
+            case .running: self.state = .active
+            case .paused:  self.state = .paused
+            case .ended, .stopped:
+                // Session was terminated externally — most commonly by the system after
+                // an activity-ring goal notification ("End Workout?" prompt) or by
+                // watchOS itself. Our UI still shows the active screen at this point.
+                // Finalize immediately so the partial GPS route is not lost.
+                guard self.state == .active || self.state == .paused else { break }
+                logger.warning("HKWorkoutSession ended externally (toState=\(toState.rawValue)) — finalizing route")
+                Task { await self.stop() }
+            default: break
             }
         }
     }
