@@ -320,7 +320,17 @@ extension OAuthManager: ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
         let scenes = UIApplication.shared.connectedScenes
         let windowScene = scenes.first { $0.activationState == .foregroundActive } as? UIWindowScene
-        return windowScene?.windows.first { $0.isKeyWindow } ?? ASPresentationAnchor()
+        // Prefer the key window; fall back to any window in the active scene.
+        // UIWindow() was deprecated in iOS 26 — UIWindow(windowScene:) is now required.
+        if let window = windowScene?.windows.first(where: { $0.isKeyWindow })
+                     ?? windowScene?.windows.first {
+            return window
+        }
+        // Last resort: create a window anchored to the scene if available.
+        if let ws = windowScene {
+            return UIWindow(windowScene: ws)
+        }
+        return UIWindow()
     }
 }
 

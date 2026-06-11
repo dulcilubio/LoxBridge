@@ -1,7 +1,8 @@
 import Foundation
 import OSLog
 
-actor LiveloxUploader {
+@MainActor
+final class LiveloxUploader {
     static let shared = LiveloxUploader()
 
     private let storageManager = StorageManager.shared

@@ -21,7 +21,9 @@ final class NotificationManager {
         let settings = await center.notificationSettings()
         if settings.authorizationStatus == .notDetermined {
             do {
-                _ = try await center.requestAuthorization(options: [.alert, .sound, .badge, .timeSensitive])
+                // .timeSensitive was deprecated in iOS 15 — use the time-sensitive
+            // entitlement (com.apple.developer.usernotifications.time-sensitive) instead.
+            _ = try await center.requestAuthorization(options: [.alert, .sound, .badge])
             } catch {
                 AppLogger.notification.error("Notification authorization failed: \(error.localizedDescription)")
             }

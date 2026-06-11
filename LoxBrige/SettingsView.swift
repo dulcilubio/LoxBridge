@@ -226,7 +226,7 @@ struct SettingsView: View {
 /// CAEmitterLayer-based confetti burst rendered over the settings form.
 private struct FireworksView: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: UIScreen.main.bounds)
+        let view = UIView(frame: .zero)  // sized by SwiftUI layout; UIScreen.main removed in iOS 26
         view.backgroundColor = .clear
         view.isUserInteractionEnabled = false
 

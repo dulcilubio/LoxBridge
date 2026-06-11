@@ -26,14 +26,15 @@ final class WorkoutObserver {
             // app and may stop delivering future background wakes.
             completionHandler()
 
-            // Request extended background execution time so the full pipeline
-            // (route extraction retries + Livelox upload + polling) can finish before
-            // iOS suspends the process.
-            let bgTaskID = UIApplication.shared.beginBackgroundTask(withName: "WorkoutProcessing") {
-                AppLogger.workout.warning("Background task expired before processing finished")
-            }
-
-            Task {
+            // UIApplication.shared is @MainActor in Swift 6; request the background
+            // task and run the pipeline inside a @MainActor Task so access is valid.
+            Task { @MainActor [weak self] in
+                var bgTaskID: UIBackgroundTaskIdentifier = .invalid
+                bgTaskID = UIApplication.shared.beginBackgroundTask(withName: "WorkoutProcessing") {
+                    // Apple guarantees this handler is called on the main thread.
+                    UIApplication.shared.endBackgroundTask(bgTaskID)
+                    AppLogger.workout.warning("WorkoutProcessing background task expired")
+                }
                 await self?.processAllUnprocessedWorkouts()
                 UIApplication.shared.endBackgroundTask(bgTaskID)
             }

@@ -260,7 +260,9 @@ final class WorkoutProcessor {
             let wid = workoutUUID
             Task.detached(priority: .utility) {
                 if let name = await WorkoutProcessor.reverseGeocode(location: firstLocation) {
-                    sm.updateLocationName(workoutUUID: wid, locationName: name)
+                    await MainActor.run {
+                        sm.updateLocationName(workoutUUID: wid, locationName: name)
+                    }
                 }
             }
         }
@@ -379,8 +381,10 @@ final class WorkoutProcessor {
             let wid = workoutUUID
             Task.detached(priority: .utility) {
                 if let name = await WorkoutProcessor.reverseGeocode(location: firstLocation) {
-                    sm.updateLocationName(workoutUUID: wid, locationName: name)
-                    AppLogger.route.info("Location name resolved: \(name) for \(wid.uuidString)")
+                    await MainActor.run {
+                        sm.updateLocationName(workoutUUID: wid, locationName: name)
+                        AppLogger.route.info("Location name resolved: \(name) for \(wid.uuidString)")
+                    }
                 }
             }
         }

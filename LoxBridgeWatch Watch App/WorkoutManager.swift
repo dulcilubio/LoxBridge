@@ -235,7 +235,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     }
 
     private func sendDirectTransfer(workout: HKWorkout) {
-        logger.info("sendDirectTransfer: \(allRecordedLocations.count) GPS point(s) collected for \(workout.uuid.uuidString)")
+        logger.info("sendDirectTransfer: \(self.allRecordedLocations.count) GPS point(s) collected for \(workout.uuid.uuidString)")
 
         // Always insert the provisional route entry immediately so the finished
         // workout appears in the Watch list regardless of WCSession state.
