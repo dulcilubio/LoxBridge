@@ -7,7 +7,6 @@ struct SettingsView: View {
     @Environment(\.openURL) private var openURL
     @AppStorage("minWorkoutDistanceKm")      private var minWorkoutDistanceKm:      Double = 0
     @AppStorage("minWorkoutDurationSecs")    private var minWorkoutDurationSecs:    Double = 0
-    @AppStorage("uploadFitnessAppRoutes")    private var uploadFitnessAppRoutes:    Bool   = true
     @AppStorage("askBeforeUpload")           private var askBeforeUpload:           Bool   = false
     @AppStorage("notifyOnUploadStarted")     private var notifyOnUploadStarted:     Bool   = false
     @AppStorage("notifyOnUploadFailed")   private var notifyOnUploadFailed:   Bool = false
@@ -90,12 +89,38 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                         }
                     }
-                    Toggle("Apple Fitness routes", isOn: $uploadFitnessAppRoutes)
                     Toggle("Ask before uploading", isOn: $askBeforeUpload)
                 } header: {
                     Text("Filters and Upload")
                 } footer: {
-                    Text("All routes recorded with the LoxBridge Watch app are always sent to Livelox. Enable \"Apple Fitness routes\" to also upload activities from Apple's built-in Workout app. Third-party apps (Strava, etc.) are not included.")
+                    Text("Activities shorter or briefer than these thresholds will not be sent to Livelox.")
+                        .font(.caption)
+                }
+
+                // MARK: Recording Apps
+                Section {
+                    LabeledContent("LoxBridge Watch") {
+                        Text("Always enabled")
+                            .foregroundStyle(.secondary)
+                    }
+                    let sources = WorkoutSourceRegistry.shared.nonBuiltInSources
+                    if sources.isEmpty {
+                        Text("No additional apps discovered yet — run a workout in another app to add it here.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(sources) { source in
+                            let bundleID = source.bundleID
+                            Toggle(source.displayName, isOn: Binding(
+                                get: { WorkoutSourceRegistry.shared.isEnabled(bundleID: bundleID) },
+                                set: { WorkoutSourceRegistry.shared.setEnabled(bundleID: bundleID, enabled: $0) }
+                            ))
+                        }
+                    }
+                } header: {
+                    Text("Recording Apps")
+                } footer: {
+                    Text("Enable additional apps to include their GPS routes. Apps appear here automatically once a workout is detected in Health.")
                         .font(.caption)
                 }
 

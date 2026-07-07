@@ -55,11 +55,6 @@ final class WorkoutProcessor {
         max(0, UserDefaults.standard.double(forKey: "minWorkoutDurationSecs"))
     }
 
-    private var uploadFitnessAppRoutes: Bool {
-        guard UserDefaults.standard.object(forKey: "uploadFitnessAppRoutes") != nil else { return true }
-        return UserDefaults.standard.bool(forKey: "uploadFitnessAppRoutes")
-    }
-
     private var askBeforeUpload: Bool {
         UserDefaults.standard.bool(forKey: "askBeforeUpload")
     }
@@ -296,15 +291,18 @@ final class WorkoutProcessor {
             return
         }
 
-        // LoxBridge Watch app routes always pass. Apple Fitness routes pass only when
-        // the toggle is on. Everything else (third-party apps) is always filtered out.
         let bundleID = workout.sourceRevision.source.bundleIdentifier
+        let sourceName = workout.sourceRevision.source.name
         let isLoxBridgeRoute = bundleID == "se.erikfrick.loxbridge.watchkitapp"
-        let isFitnessAppRoute = bundleID.hasPrefix("com.apple.")
-        guard isLoxBridgeRoute || (uploadFitnessAppRoutes && isFitnessAppRoute) else {
-            AppLogger.workout.info("Workout filtered by upload type: \(workoutUUID.uuidString)")
-            storageManager.markProcessed(workoutUUID: workoutUUID)
-            return
+
+        if !isLoxBridgeRoute {
+            await WorkoutSourceRegistry.shared.register(bundleID: bundleID, displayName: sourceName)
+            guard await WorkoutSourceRegistry.shared.isEnabled(bundleID: bundleID) else {
+                // Source not yet enabled — do NOT mark as processed so the workout can
+                // be picked up again if the user later enables this source.
+                AppLogger.workout.info("Source '\(sourceName)' (\(bundleID)) not enabled — skipping \(workoutUUID.uuidString)")
+                return
+            }
         }
 
         let locations = try await routeExtractor.extractLocations(for: workout)
