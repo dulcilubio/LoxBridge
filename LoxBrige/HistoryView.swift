@@ -33,6 +33,10 @@ struct HistoryView: View {
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
+                        NavigationLink("Missing workouts?") {
+                            WorkoutDiagnosticsView()
+                        }
+                        .font(.callout)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {

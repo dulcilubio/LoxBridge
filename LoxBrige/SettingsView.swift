@@ -124,6 +124,18 @@ struct SettingsView: View {
                         .font(.caption)
                 }
 
+                // MARK: Troubleshooting
+                Section {
+                    NavigationLink("Missing workouts?") {
+                        WorkoutDiagnosticsView()
+                    }
+                } header: {
+                    Text("Troubleshooting")
+                } footer: {
+                    Text("See which workouts LoxBridge can read from Health, why some are skipped, and import older ones.")
+                        .font(.caption)
+                }
+
                 // MARK: Notifications
                 Section("Notifications") {
                     Toggle("Uploading to Livelox", isOn: $notifyOnUploadStarted)

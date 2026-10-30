@@ -3,7 +3,7 @@ import HealthKit
 import CoreLocation
 import OSLog
 
-private extension HKWorkoutActivityType {
+extension HKWorkoutActivityType {
     /// Returns `true` for activity types that are likely to have a GPS route.
     var isOutdoorActivity: Bool {
         switch self {
@@ -336,6 +336,34 @@ final class WorkoutProcessor {
             }
         }
 
+        try await saveAndUpload(workout: workout, locations: locations)
+    }
+
+    /// Imports a workout the user picked by hand in the diagnostics view.
+    /// Bypasses the install-date anchor, the processed-workout registry, the
+    /// recording-app filter and the distance/duration thresholds — the user has
+    /// explicitly chosen this workout. Still requires a GPS route.
+    func importManually(workout: HKWorkout) async throws {
+        let workoutUUID = workout.uuid
+        guard storageManager.metadata(for: workoutUUID) == nil else {
+            AppLogger.workout.info("Manual import skipped, route already saved: \(workoutUUID.uuidString)")
+            return
+        }
+
+        let locations = try await routeExtractor.extractLocations(for: workout)
+        guard !locations.isEmpty else {
+            AppLogger.route.info("Manual import found no route locations: \(workoutUUID.uuidString)")
+            throw AppError.routeNotFound
+        }
+
+        AppLogger.workout.info("Manual import: \(workoutUUID.uuidString)")
+        try await saveAndUpload(workout: workout, locations: locations)
+    }
+
+    /// Builds the GPX, stores it, notifies the Watch and starts the upload
+    /// (or queues it for confirmation, depending on settings).
+    private func saveAndUpload(workout: HKWorkout, locations: [CLLocation]) async throws {
+        let workoutUUID = workout.uuid
         let gpxString = gpxBuilder.buildGPX(locations: locations)
         guard !gpxString.isEmpty else {
             AppLogger.route.error("GPX creation failed: \(workoutUUID.uuidString)")
