@@ -15,6 +15,8 @@ struct SettingsView: View {
     @State private var versionTapCount = 0
     @State private var showFireworks = false
     @State private var notificationsAuthorized: Bool = true
+    @State private var showAppleSourceWarning = false
+    @State private var pendingDisableBundleID: String? = nil
 
     private var liveloxConnected: Bool { model.liveloxStatus == "Connected" }
     private var healthKitOK: Bool { model.healthKitStatus == "Authorized" }
@@ -105,23 +107,48 @@ struct SettingsView: View {
                     }
                     let sources = WorkoutSourceRegistry.shared.nonBuiltInSources
                     if sources.isEmpty {
-                        Text("No additional apps discovered yet — run a workout in another app to add it here.")
+                        Text("No additional apps discovered yet. Apps that have recorded a GPS route in Health appear here automatically.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(sources) { source in
                             let bundleID = source.bundleID
+                            let isApple = bundleID.hasPrefix("com.apple.")
                             Toggle(source.displayName, isOn: Binding(
                                 get: { WorkoutSourceRegistry.shared.isEnabled(bundleID: bundleID) },
-                                set: { WorkoutSourceRegistry.shared.setEnabled(bundleID: bundleID, enabled: $0) }
+                                set: { newValue in
+                                    if !newValue && isApple {
+                                        pendingDisableBundleID = bundleID
+                                        showAppleSourceWarning = true
+                                    } else {
+                                        WorkoutSourceRegistry.shared.setEnabled(bundleID: bundleID, enabled: newValue)
+                                    }
+                                }
                             ))
                         }
                     }
                 } header: {
                     Text("Recording Apps")
                 } footer: {
-                    Text("Enable additional apps to include their GPS routes. Apps appear here automatically once a workout is detected in Health.")
+                    Text("Apps that have delivered a GPS route to LoxBridge appear here automatically. Only apps with GPS route support are shown.")
                         .font(.caption)
+                }
+                .confirmationDialog(
+                    "Disable Apple Fitness routes?",
+                    isPresented: $showAppleSourceWarning,
+                    titleVisibility: .visible
+                ) {
+                    Button("Disable", role: .destructive) {
+                        if let id = pendingDisableBundleID {
+                            WorkoutSourceRegistry.shared.setEnabled(bundleID: id, enabled: false)
+                        }
+                        pendingDisableBundleID = nil
+                    }
+                    Button("Cancel", role: .cancel) {
+                        pendingDisableBundleID = nil
+                    }
+                } message: {
+                    Text("Workouts recorded with the Apple Workout app will no longer be uploaded to Livelox.")
                 }
 
                 // MARK: Troubleshooting

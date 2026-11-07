@@ -45,6 +45,10 @@ final class WorkoutSourceRegistry {
         return true
     }
 
+    func isKnown(bundleID: String) -> Bool {
+        sources.contains { $0.bundleID == bundleID }
+    }
+
     func isEnabled(bundleID: String) -> Bool {
         sources.first { $0.bundleID == bundleID }?.isEnabled ?? false
     }

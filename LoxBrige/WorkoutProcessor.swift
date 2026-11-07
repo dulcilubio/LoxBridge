@@ -295,12 +295,12 @@ final class WorkoutProcessor {
         let sourceName = workout.sourceRevision.source.name
         let isLoxBridgeRoute = bundleID == "se.erikfrick.loxbridge.watchkitapp"
 
-        if !isLoxBridgeRoute {
-            await WorkoutSourceRegistry.shared.register(bundleID: bundleID, displayName: sourceName)
-            guard await WorkoutSourceRegistry.shared.isEnabled(bundleID: bundleID) else {
-                // Source not yet enabled — do NOT mark as processed so the workout can
-                // be picked up again if the user later enables this source.
-                AppLogger.workout.info("Source '\(sourceName)' (\(bundleID)) not enabled — skipping \(workoutUUID.uuidString)")
+        // Early exit for already-registered sources that the user has disabled.
+        // Unregistered sources are allowed through so we can attempt route extraction
+        // before deciding whether to add them to the registry.
+        if !isLoxBridgeRoute && WorkoutSourceRegistry.shared.isKnown(bundleID: bundleID) {
+            guard WorkoutSourceRegistry.shared.isEnabled(bundleID: bundleID) else {
+                AppLogger.workout.info("Source '\(sourceName)' (\(bundleID)) is disabled — skipping \(workoutUUID.uuidString)")
                 return
             }
         }
@@ -313,6 +313,18 @@ final class WorkoutProcessor {
             // app is opened.
             AppLogger.route.info("No route locations found yet for: \(workoutUUID.uuidString)")
             throw AppError.routeNotFound
+        }
+
+        // Register the source only after confirming it has a GPS route.
+        // This keeps non-GPS apps (Garmin Connect, Polar Flow, etc.) out of Settings.
+        if !isLoxBridgeRoute {
+            await WorkoutSourceRegistry.shared.register(bundleID: bundleID, displayName: sourceName)
+            guard await WorkoutSourceRegistry.shared.isEnabled(bundleID: bundleID) else {
+                // Registered but disabled (non-Apple source that defaulted to off,
+                // or user disabled it between workouts). Do NOT mark as processed.
+                AppLogger.workout.info("Source '\(sourceName)' (\(bundleID)) not enabled — skipping \(workoutUUID.uuidString)")
+                return
+            }
         }
 
         // Skip workouts shorter than the user-configured minimum distance.
