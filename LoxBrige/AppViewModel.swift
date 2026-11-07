@@ -167,7 +167,7 @@ final class AppViewModel: ObservableObject {
     }
 
     func skipUpload(workoutUUID: UUID) {
-        StorageManager.shared.clearPendingConfirmation(workoutUUID: workoutUUID)
+        StorageManager.shared.markSkipped(workoutUUID: workoutUUID)
         pendingConfirmationRoute = StorageManager.shared.pendingConfirmationRoutes().first
     }
 

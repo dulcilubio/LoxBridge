@@ -37,6 +37,9 @@ struct RouteMetadata: Codable {
     /// Optional so that stored JSON written before this field existed decodes without error —
     /// synthesised Codable does NOT apply default values for missing non-optional keys.
     var pendingConfirmation: Bool?
+    /// Set when the user explicitly skips the upload confirmation ("Not Now" / "No").
+    /// Routes marked skipped are excluded from pendingUploads() and never auto-uploaded.
+    var uploadSkipped: Bool?
 }
 
 final class StorageManager {
@@ -165,8 +168,8 @@ final class StorageManager {
     }
 
     func pendingUploads() -> [RouteMetadata] {
-        // Exclude routes waiting for explicit user confirmation — they must not be auto-uploaded.
-        queue.sync { loadAllMetadata().filter { !$0.uploaded && $0.pendingConfirmation != true } }
+        // Exclude routes waiting for user confirmation, or that the user explicitly skipped.
+        queue.sync { loadAllMetadata().filter { !$0.uploaded && $0.pendingConfirmation != true && $0.uploadSkipped != true } }
     }
 
     func markPendingConfirmation(workoutUUID: UUID) {
@@ -185,6 +188,19 @@ final class StorageManager {
             var metadata = loadAllMetadata()
             guard let index = metadata.firstIndex(where: { $0.workoutUUID == workoutUUID }) else { return }
             metadata[index].pendingConfirmation = false
+            saveAllMetadata(metadata)
+        }
+    }
+
+    /// Marks a route as explicitly skipped by the user so it is never auto-uploaded.
+    func markSkipped(workoutUUID: UUID) {
+        queue.sync {
+            var metadata = loadAllMetadata()
+            guard let index = metadata.firstIndex(where: { $0.workoutUUID == workoutUUID }) else { return }
+            metadata[index].pendingConfirmation = false
+            metadata[index].uploadSkipped = true
+            metadata[index].importStatus = "Skipped"
+            metadata[index].importStatusUpdatedAt = Date()
             saveAllMetadata(metadata)
         }
     }
