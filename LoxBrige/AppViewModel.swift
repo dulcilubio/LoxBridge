@@ -21,6 +21,9 @@ final class AppViewModel: ObservableObject {
     private var routeListObserver: AnyCancellable?
 
     func initialize() async {
+        recentRoutes = StorageManager.shared.recentRoutes(limit: 50)
+        importStatus = StorageManager.shared.lastImportStatus()
+        pendingConfirmationRoute = StorageManager.shared.pendingConfirmationRoutes().first
         routeListObserver = NotificationCenter.default
             .publisher(for: .routeListChanged)
             .receive(on: DispatchQueue.main)
@@ -117,7 +120,7 @@ final class AppViewModel: ObservableObject {
         healthKitStatus = await healthKitManager.readAuthorizationStatusText()
         liveloxStatus = oauthManager.isAuthorized ? "Connected" : "Not connected"
         importStatus = StorageManager.shared.lastImportStatus()
-        _ = StorageManager.shared.pruneMissingRoutes()
+        if !SampleData.isScreenshotMode { _ = StorageManager.shared.pruneMissingRoutes() }
         recentRoutes = StorageManager.shared.recentRoutes(limit: 50)
         pendingConfirmationRoute = StorageManager.shared.pendingConfirmationRoutes().first
 
@@ -167,7 +170,7 @@ final class AppViewModel: ObservableObject {
     }
 
     func skipUpload(workoutUUID: UUID) {
-        StorageManager.shared.clearPendingConfirmation(workoutUUID: workoutUUID)
+        StorageManager.shared.markSkipped(workoutUUID: workoutUUID)
         pendingConfirmationRoute = StorageManager.shared.pendingConfirmationRoutes().first
     }
 

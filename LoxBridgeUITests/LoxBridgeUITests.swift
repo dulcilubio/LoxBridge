@@ -48,12 +48,27 @@ final class LoxBridgeUITests: XCTestCase {
         snapshot("02_Routes")
     }
 
-    /// Screenshot 3 — Settings tab
-    func test03_Settings() throws {
+    /// Screenshot 3 — Route detail with speed-gradient map (25manna orienteering)
+    func test03_RouteDetail() throws {
+        let routesTab = app.tabBars.buttons["Routes"]
+        XCTAssertTrue(routesTab.waitForExistence(timeout: 5))
+        routesTab.tap()
+        sleep(2) // let sample routes load and map tiles render
+
+        // Tap the first cell in the routes list (25manna, the most recent)
+        let firstCell = app.cells.firstMatch
+        XCTAssertTrue(firstCell.waitForExistence(timeout: 5))
+        firstCell.tap()
+        sleep(3) // wait for MapKit tiles + route overlay to render
+        snapshot("03_RouteDetail")
+    }
+
+    /// Screenshot 4 — Settings tab
+    func test04_Settings() throws {
         let settingsTab = app.tabBars.buttons["Settings"]
         XCTAssertTrue(settingsTab.waitForExistence(timeout: 5))
         settingsTab.tap()
         sleep(1)
-        snapshot("03_Settings")
+        snapshot("04_Settings")
     }
 }

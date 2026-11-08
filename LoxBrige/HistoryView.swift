@@ -33,6 +33,10 @@ struct HistoryView: View {
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
+                        NavigationLink("Missing workouts?") {
+                            WorkoutDiagnosticsView()
+                        }
+                        .font(.callout)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -67,13 +71,11 @@ struct HistoryView: View {
                                         route: route,
                                         dateFormatter: Self.dateFormatter,
                                         onUpload: route.uploaded ? nil : {
-                                            Task {
-                                                do {
-                                                    try await LiveloxUploader.shared.upload(workoutUUID: route.workoutUUID)
-                                                    await model.refreshStatus()
-                                                } catch {
-                                                    model.lastError = error.localizedDescription
-                                                }
+                                            do {
+                                                try await LiveloxUploader.shared.upload(workoutUUID: route.workoutUUID)
+                                                await model.refreshStatus()
+                                            } catch {
+                                                model.lastError = error.localizedDescription
                                             }
                                         }
                                     )
@@ -201,7 +203,9 @@ struct HistoryView: View {
 private struct RouteRow: View {
     let route: RouteMetadata
     let dateFormatter: DateFormatter
-    let onUpload: (() -> Void)?
+    let onUpload: (() async throws -> Void)?
+
+    @State private var isUploading = false
 
     // MARK: Derived state
 
@@ -312,14 +316,40 @@ private struct RouteRow: View {
 
                 // Action buttons — upload/retry only; GPX sharing via left swipe, Livelox via row tap
                 if let onUpload, !route.uploaded {
-                    Button("Upload to Livelox") { onUpload() }
-                        .font(.caption2)
-                        .buttonStyle(.bordered)
+                    Button {
+                        Task {
+                            isUploading = true
+                            defer { isUploading = false }
+                            try? await onUpload()
+                        }
+                    } label: {
+                        if isUploading {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Text("Upload to Livelox")
+                        }
+                    }
+                    .font(.caption2)
+                    .buttonStyle(.bordered)
+                    .disabled(isUploading)
                 } else if hasFailed {
-                    Button("Try Again") { onUpload?() }
-                        .font(.caption2)
-                        .buttonStyle(.bordered)
-                        .tint(.red)
+                    Button {
+                        Task {
+                            isUploading = true
+                            defer { isUploading = false }
+                            try? await onUpload?()
+                        }
+                    } label: {
+                        if isUploading {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Text("Try Again")
+                        }
+                    }
+                    .font(.caption2)
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                    .disabled(isUploading)
                 }
             }
         }

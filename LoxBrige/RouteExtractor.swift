@@ -36,6 +36,13 @@ final class RouteExtractor {
         return allLocations.sorted { $0.timestamp < $1.timestamp }
     }
 
+    /// Single lookup without retries — used by the diagnostics view to show
+    /// whether a workout has a GPS route in HealthKit right now.
+    func hasRoute(for workout: HKWorkout) async -> Bool {
+        let routes = (try? await fetchRoutes(for: workout)) ?? []
+        return !routes.isEmpty
+    }
+
     /// Fetches routes associated with the workout via two strategies:
     /// 1. `predicateForObjects(from: workout)` — direct association (preferred)
     /// 2. Time-range overlap fallback — catches routes that are in HealthKit but

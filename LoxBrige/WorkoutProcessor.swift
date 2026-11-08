@@ -3,7 +3,7 @@ import HealthKit
 import CoreLocation
 import OSLog
 
-private extension HKWorkoutActivityType {
+extension HKWorkoutActivityType {
     /// Returns `true` for activity types that are likely to have a GPS route.
     var isOutdoorActivity: Bool {
         switch self {
@@ -70,15 +70,7 @@ final class WorkoutProcessor {
     /// Combining both gives a string like "Erik's Apple Watch (Watch6,1)" that Livelox
     /// can display as the recording device. Falls back gracefully when either field is absent.
     private func deviceName(for workout: HKWorkout) -> String {
-        let customName   = workout.device?.name
-        let productType  = workout.sourceRevision.productType
-
-        switch (customName, productType) {
-        case (let name?, let type?): return "\(name) (\(type))"
-        case (let name?, nil):       return name
-        case (nil, let type?):       return type
-        case (nil, nil):             return workout.sourceRevision.source.name
-        }
+        workout.device?.name ?? workout.sourceRevision.source.name
     }
 
     /// Reverse-geocodes a location into a human-readable area name (e.g. "Skatås, Göteborg").
@@ -295,12 +287,12 @@ final class WorkoutProcessor {
         let sourceName = workout.sourceRevision.source.name
         let isLoxBridgeRoute = bundleID == "se.erikfrick.loxbridge.watchkitapp"
 
-        if !isLoxBridgeRoute {
-            await WorkoutSourceRegistry.shared.register(bundleID: bundleID, displayName: sourceName)
-            guard await WorkoutSourceRegistry.shared.isEnabled(bundleID: bundleID) else {
-                // Source not yet enabled — do NOT mark as processed so the workout can
-                // be picked up again if the user later enables this source.
-                AppLogger.workout.info("Source '\(sourceName)' (\(bundleID)) not enabled — skipping \(workoutUUID.uuidString)")
+        // Early exit for already-registered sources that the user has disabled.
+        // Unregistered sources are allowed through so we can attempt route extraction
+        // before deciding whether to add them to the registry.
+        if !isLoxBridgeRoute && WorkoutSourceRegistry.shared.isKnown(bundleID: bundleID) {
+            guard WorkoutSourceRegistry.shared.isEnabled(bundleID: bundleID) else {
+                AppLogger.workout.info("Source '\(sourceName)' (\(bundleID)) is disabled — skipping \(workoutUUID.uuidString)")
                 return
             }
         }
@@ -313,6 +305,18 @@ final class WorkoutProcessor {
             // app is opened.
             AppLogger.route.info("No route locations found yet for: \(workoutUUID.uuidString)")
             throw AppError.routeNotFound
+        }
+
+        // Register the source only after confirming it has a GPS route.
+        // This keeps non-GPS apps (Garmin Connect, Polar Flow, etc.) out of Settings.
+        if !isLoxBridgeRoute {
+            await WorkoutSourceRegistry.shared.register(bundleID: bundleID, displayName: sourceName)
+            guard await WorkoutSourceRegistry.shared.isEnabled(bundleID: bundleID) else {
+                // Registered but disabled (non-Apple source that defaulted to off,
+                // or user disabled it between workouts). Do NOT mark as processed.
+                AppLogger.workout.info("Source '\(sourceName)' (\(bundleID)) not enabled — skipping \(workoutUUID.uuidString)")
+                return
+            }
         }
 
         // Skip workouts shorter than the user-configured minimum distance.
@@ -336,6 +340,34 @@ final class WorkoutProcessor {
             }
         }
 
+        try await saveAndUpload(workout: workout, locations: locations)
+    }
+
+    /// Imports a workout the user picked by hand in the diagnostics view.
+    /// Bypasses the install-date anchor, the processed-workout registry, the
+    /// recording-app filter and the distance/duration thresholds — the user has
+    /// explicitly chosen this workout. Still requires a GPS route.
+    func importManually(workout: HKWorkout) async throws {
+        let workoutUUID = workout.uuid
+        guard storageManager.metadata(for: workoutUUID) == nil else {
+            AppLogger.workout.info("Manual import skipped, route already saved: \(workoutUUID.uuidString)")
+            return
+        }
+
+        let locations = try await routeExtractor.extractLocations(for: workout)
+        guard !locations.isEmpty else {
+            AppLogger.route.info("Manual import found no route locations: \(workoutUUID.uuidString)")
+            throw AppError.routeNotFound
+        }
+
+        AppLogger.workout.info("Manual import: \(workoutUUID.uuidString)")
+        try await saveAndUpload(workout: workout, locations: locations)
+    }
+
+    /// Builds the GPX, stores it, notifies the Watch and starts the upload
+    /// (or queues it for confirmation, depending on settings).
+    private func saveAndUpload(workout: HKWorkout, locations: [CLLocation]) async throws {
+        let workoutUUID = workout.uuid
         let gpxString = gpxBuilder.buildGPX(locations: locations)
         guard !gpxString.isEmpty else {
             AppLogger.route.error("GPX creation failed: \(workoutUUID.uuidString)")

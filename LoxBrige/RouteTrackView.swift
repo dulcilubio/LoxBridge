@@ -54,7 +54,7 @@ struct RouteTrackView: View {
                 seg.move(to: ptA)
                 seg.addLine(to: ptB)
                 context.stroke(seg, with: .color(color),
-                               style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                               style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
             }
 
             // MARK: Start △

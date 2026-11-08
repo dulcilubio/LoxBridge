@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 /// Lightweight metrics captured at workout-processing time and persisted alongside route metadata.
 /// All fields are optional so existing stored JSON decodes without errors.
@@ -36,6 +37,9 @@ struct RouteMetadata: Codable {
     /// Optional so that stored JSON written before this field existed decodes without error —
     /// synthesised Codable does NOT apply default values for missing non-optional keys.
     var pendingConfirmation: Bool?
+    /// Set when the user explicitly skips the upload confirmation ("Not Now" / "No").
+    /// Routes marked skipped are excluded from pendingUploads() and never auto-uploaded.
+    var uploadSkipped: Bool?
 }
 
 final class StorageManager {
@@ -52,15 +56,45 @@ final class StorageManager {
     /// Maximum number of processed workout UUIDs kept in UserDefaults.
     private let maxProcessedIDs = 200
 
+    private let installDateKey = "loxbridgeInstallDate"
+
+    /// Keychain item mirroring the scan anchor and processed-workout registry.
+    /// UserDefaults is wiped when the app is deleted, the Keychain (in practice) is not,
+    /// so a reinstall can pick up where the previous install left off instead of either
+    /// missing workouts or re-uploading old ones.
+    private let scanStateKeychainKey = "scanState"
+
+    /// After a reinstall, unprocessed workouts are only picked up automatically if they
+    /// are this recent. Older ones are listed in the diagnostics view for manual import.
+    private let reinstallCatchUpDays = 7
+
+    private struct ScanState: Codable {
+        var scanStartDate: Date
+        var processedIDs: [String]
+    }
+
+    /// `true` once the scan anchor exists in UserDefaults, either from this install,
+    /// restored from the Keychain, or freshly created. Until then the app refuses to
+    /// process anything, since it cannot tell which workouts were already handled.
+    private var stateReady = false
+    private var lastBackup: Data?
+
     private init() {}
 
     func isProcessed(workoutUUID: UUID) -> Bool {
-        // Convert to Set for O(1) lookup while keeping the backing store ordered.
-        queue.sync { Set(processedWorkoutIDs()).contains(workoutUUID.uuidString) }
+        queue.sync {
+            ensureScanState()
+            // State unknown (Keychain unreadable after a reinstall) — treat everything
+            // as processed rather than risk re-uploading.
+            guard stateReady else { return true }
+            // Convert to Set for O(1) lookup while keeping the backing store ordered.
+            return Set(processedWorkoutIDs()).contains(workoutUUID.uuidString)
+        }
     }
 
     func markProcessed(workoutUUID: UUID) {
         queue.sync {
+            ensureScanState()
             var current = processedWorkoutIDs()
             let id = workoutUUID.uuidString
             guard !current.contains(id) else { return }
@@ -70,6 +104,7 @@ final class StorageManager {
                 current.removeFirst(current.count - maxProcessedIDs)
             }
             UserDefaults.standard.set(current, forKey: processedKey)
+            backupScanState()
         }
     }
 
@@ -133,8 +168,8 @@ final class StorageManager {
     }
 
     func pendingUploads() -> [RouteMetadata] {
-        // Exclude routes waiting for explicit user confirmation — they must not be auto-uploaded.
-        queue.sync { loadAllMetadata().filter { !$0.uploaded && $0.pendingConfirmation != true } }
+        // Exclude routes waiting for user confirmation, or that the user explicitly skipped.
+        queue.sync { loadAllMetadata().filter { !$0.uploaded && $0.pendingConfirmation != true && $0.uploadSkipped != true } }
     }
 
     func markPendingConfirmation(workoutUUID: UUID) {
@@ -153,6 +188,19 @@ final class StorageManager {
             var metadata = loadAllMetadata()
             guard let index = metadata.firstIndex(where: { $0.workoutUUID == workoutUUID }) else { return }
             metadata[index].pendingConfirmation = false
+            saveAllMetadata(metadata)
+        }
+    }
+
+    /// Marks a route as explicitly skipped by the user so it is never auto-uploaded.
+    func markSkipped(workoutUUID: UUID) {
+        queue.sync {
+            var metadata = loadAllMetadata()
+            guard let index = metadata.firstIndex(where: { $0.workoutUUID == workoutUUID }) else { return }
+            metadata[index].pendingConfirmation = false
+            metadata[index].uploadSkipped = true
+            metadata[index].importStatus = "Skipped"
+            metadata[index].importStatusUpdatedAt = Date()
             saveAllMetadata(metadata)
         }
     }
@@ -259,6 +307,7 @@ final class StorageManager {
                 try? fileManager.removeItem(atPath: route.gpxFilePath)
             }
             UserDefaults.standard.removeObject(forKey: metadataKey)
+            backupScanState()
         }
     }
 
@@ -277,22 +326,26 @@ final class StorageManager {
             // future workouts are processed — not the entire HealthKit history.
             UserDefaults.standard.set(
                 Calendar.current.startOfDay(for: Date()),
-                forKey: "loxbridgeInstallDate"
+                forKey: installDateKey
             )
+            // Overwrite the Keychain copy too, so a later reinstall doesn't restore
+            // the state from before the reset.
+            stateReady = true
+            backupScanState()
         }
     }
 
     /// The earliest date from which LoxBridge should process HealthKit workouts.
-    /// Set once on first launch and never changed automatically.
+    /// Set on first launch (start of that day) and never changed automatically.
     /// This prevents a new install (or app update) from scanning all historical
-    /// HealthKit workouts and uploading them to Livelox.
+    /// HealthKit workouts and uploading them to Livelox. After a reinstall it is
+    /// restored from the Keychain, see `ensureScanState()`.
     var workoutScanStartDate: Date {
-        if let stored = UserDefaults.standard.object(forKey: "loxbridgeInstallDate") as? Date {
-            return stored
+        queue.sync {
+            ensureScanState()
+            // State unknown — scan nothing until it can be determined.
+            return UserDefaults.standard.object(forKey: installDateKey) as? Date ?? .distantFuture
         }
-        let today = Calendar.current.startOfDay(for: Date())
-        UserDefaults.standard.set(today, forKey: "loxbridgeInstallDate")
-        return today
     }
 
     func setLastImportStatus(_ status: String) {
@@ -336,5 +389,84 @@ final class StorageManager {
             return
         }
         UserDefaults.standard.set(data, forKey: metadataKey)
+        // Upload state feeds into the backup (see backupScanState).
+        backupScanState(metadata: metadata)
+    }
+
+    /// Makes sure the scan anchor exists in UserDefaults:
+    /// - present → normal launch; also seeds the Keychain backup for installs that predate it.
+    /// - missing, Keychain backup found → reinstall; restore it, catching up at most
+    ///   `reinstallCatchUpDays` of workouts recorded while the app was gone.
+    /// - missing, no backup → genuinely new install; start from today.
+    /// - missing, Keychain unreadable → leave `stateReady` false and retry next call.
+    private func ensureScanState() {
+        guard !stateReady else { return }
+        let defaults = UserDefaults.standard
+
+        if defaults.object(forKey: installDateKey) is Date {
+            stateReady = true
+            backupScanState()
+            return
+        }
+
+        switch KeychainHelper.shared.loadResult(key: scanStateKeychainKey) {
+        case .found(let data):
+            guard let backup = try? JSONDecoder().decode(ScanState.self, from: data) else {
+                AppLogger.workout.error("Scan state backup unreadable — starting fresh")
+                startFresh()
+                return
+            }
+            let calendar = Calendar.current
+            let catchUpFloor = calendar.startOfDay(
+                for: calendar.date(byAdding: .day, value: -reinstallCatchUpDays, to: Date()) ?? Date()
+            )
+            let start = max(backup.scanStartDate, catchUpFloor)
+            // Keep anything this install already recorded, then add the backup.
+            let current = processedWorkoutIDs()
+            var merged = backup.processedIDs.filter { !current.contains($0) } + current
+            if merged.count > maxProcessedIDs {
+                merged.removeFirst(merged.count - maxProcessedIDs)
+            }
+            defaults.set(start, forKey: installDateKey)
+            defaults.set(merged, forKey: processedKey)
+            stateReady = true
+            AppLogger.workout.info("Restored scan state from Keychain: \(merged.count) processed, scanning from \(start)")
+            backupScanState()
+
+        case .notFound:
+            startFresh()
+
+        case .failed(let status):
+            AppLogger.workout.error("Scan state Keychain read failed (\(status)) — deferring")
+        }
+    }
+
+    private func startFresh() {
+        UserDefaults.standard.set(Calendar.current.startOfDay(for: Date()), forKey: installDateKey)
+        stateReady = true
+        backupScanState()
+    }
+
+    /// Mirrors the scan anchor and processed registry to the Keychain.
+    /// Workouts that were saved but never uploaded are left out, so that after a
+    /// reinstall (which deletes the GPX files) they are picked up and offered again
+    /// instead of being silently lost. Writes only when the content changed.
+    private func backupScanState(metadata: [RouteMetadata]? = nil) {
+        guard stateReady,
+              let start = UserDefaults.standard.object(forKey: installDateKey) as? Date else { return }
+        let notUploaded = Set((metadata ?? loadAllMetadata()).filter { !$0.uploaded }.map(\.workoutUUID.uuidString))
+        let state = ScanState(
+            scanStartDate: start,
+            processedIDs: processedWorkoutIDs().filter { !notUploaded.contains($0) }
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        guard let data = try? encoder.encode(state), data != lastBackup else { return }
+        // AfterFirstUnlock: HealthKit background delivery can run while the phone is locked.
+        if KeychainHelper.shared.update(data: data, key: scanStateKeychainKey, accessible: kSecAttrAccessibleAfterFirstUnlock) {
+            lastBackup = data
+        } else {
+            AppLogger.workout.error("Scan state Keychain write failed — will retry on next change")
+        }
     }
 }
