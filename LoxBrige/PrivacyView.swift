@@ -20,7 +20,7 @@ struct PrivacyView: View {
                     icon: "heart.fill",
                     iconColor: .red,
                     title: "Health & workout data",
-                    detail: "LoxBridge reads your workouts and GPS routes from the Apple Health app. This data stays on your device and is never shared with anyone other than Livelox, and only when you initiate an upload."
+                    detail: "The iPhone app reads your workouts and GPS routes from the Apple Health app. If you record a workout using the LoxBridge Apple Watch app, that workout and its GPS route are saved to Apple Health by the Watch app — the same way any other workout app works. This data stays on your device and is never shared with anyone other than Livelox, and only when you initiate an upload."
                 )
                 PrivacyRow(
                     icon: "location.fill",

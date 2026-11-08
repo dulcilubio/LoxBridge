@@ -5,7 +5,7 @@
 **Contact:** loxbridge.employee017@slmail.me  
 **Country:** Sweden  
 **Effective date:** 2026-03-23 
-**Latest revision:** March 2026  
+**Latest revision:** November 2026  
 
 ---
 
@@ -23,26 +23,32 @@ By using LoxBridge, you acknowledge that you have read and understood this Priva
 
 ### 2.1 Health and Workout Data (HealthKit)
 
-LoxBridge requests read-only access to the following HealthKit data types:
+LoxBridge accesses the following HealthKit data types:
 
-| Data type | Purpose |
-|---|---|
-| Workout sessions | Detect new outdoor workouts to process |
-| Workout routes (GPS tracks) | Extract the GPS path to generate a GPX file |
-| Workout metadata (duration, distance, device name) | Include stats in the route history display |
+| Data type | Access | Purpose |
+|---|---|---|
+| Workout sessions | Read | Detect new outdoor workouts recorded by Apple Watch |
+| Workout routes (GPS tracks) | Read | Extract the GPS path to generate a GPX file |
+| Workout metadata (duration, distance, device name) | Read | Include stats in the route history display |
+| Workout sessions and GPS routes | **Write** | When you record a workout using the LoxBridge Apple Watch app, the workout and its GPS route are saved to Apple Health by the Watch app |
 
-**LoxBridge does not write any data back to Apple Health.**  
+The iPhone app reads data from Apple Health but does not write to it.  
+The Apple Watch companion app writes workout and GPS route data to Apple Health when you use it to record a workout.
+
 HealthKit data is accessed strictly for the purposes described in this policy and only with your explicit permission.
 
 ---
 
 ### 2.2 Location Data (Derived from Workouts)
 
-GPS coordinates are read from workout routes already recorded and stored in the Apple Health app by your Apple Watch or iPhone.
+GPS coordinates come from one of two sources:
+
+- **Routes recorded by other apps:** LoxBridge reads GPS tracks already stored in Apple Health by your Apple Watch or any other workout app.
+- **Routes recorded by the LoxBridge Watch app:** When you start a workout using the LoxBridge Apple Watch app, the Watch app records and saves the GPS track to Apple Health. LoxBridge then reads it back for GPX export.
 
 LoxBridge does **not** request access to your current live location.
 
-After processing a workout, the app performs a reverse-geocoding lookup (using Apple's `CLGeocoder` service) to derive a human-readable place name (e.g. "Skatås, Göteborg") for display.
+After processing a workout, the app performs a reverse-geocoding lookup using Apple's geocoding service to derive a human-readable place name (e.g. "Skatås, Göteborg") for display.
 
 No servers controlled by LoxBridge receive this data. Apple may process this data as part of its geocoding service.
 
@@ -73,6 +79,7 @@ This information is:
 
 | Purpose | Data involved |
 |---|---|
+| Record a workout (Watch app) | GPS track, timestamps, activity type — saved to Apple Health |
 | Generate a GPX file | GPS track, timestamps |
 | Display route history | Date, distance, duration, activity type, location name, device name |
 | Upload routes to Livelox (user-initiated) | GPX file |
@@ -109,9 +116,9 @@ OAuth tokens are stored securely in the iOS Keychain and are only sent to Livelo
 
 ---
 
-### 4.2 Apple (Geocoding)
+### 4.2 Apple (Geocoding and Maps)
 
-Apple’s geocoding service may process GPS coordinates to provide place names.
+Apple’s geocoding service may process GPS coordinates to provide place names (e.g. "Skatås, Göteborg").
 
 This is governed by Apple’s own privacy policy.
 
@@ -214,7 +221,8 @@ If you believe that a child has used the app in a way that raises privacy concer
 - Data is used only for core functionality  
 - Never used for advertising or profiling  
 - Never sold  
-- Only shared with Livelox when user initiates  
+- Only shared with Livelox when user initiates
+- The Watch app writes workout data to Apple Health solely to record the workout you are performing; this data is then read back by the iPhone app for GPX export  
 
 ---
 
