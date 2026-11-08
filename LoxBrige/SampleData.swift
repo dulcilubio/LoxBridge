@@ -30,7 +30,7 @@ enum SampleData {
             workoutUUID:        uuid1,
             gpxFilePath:        "sample_25manna.gpx",
             uploaded:           true,
-            createdAt:          iso("2026-10-10T14:00:00Z"),
+            createdAt:          iso("2026-11-07T14:00:00Z"),
             importStatus:       "On Livelox",
             importStatusUpdatedAt: iso("2026-10-10T16:30:00Z"),
             liveloxURL:         nil,

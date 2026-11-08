@@ -1,0 +1,35 @@
+# ============================================================
+# Snapfile — fastlane snapshot configuration for LoxBridge
+# Run: cd LoxBrige && fastlane snapshot
+# ============================================================
+
+# App Store required device sizes
+devices([
+  "iPhone 17 Pro Max",    # 6.9" — required by App Store Connect
+  "iPhone 13 Pro Max",    # 6.7" — required by App Store Connect
+])
+
+# Force the exact simulator OS version (SDK reports "26.3" but simulators need "26.3.1")
+ios_version("26.3.1")
+
+languages([
+  "en-US",
+])
+
+# The shared scheme that includes the UI test target
+scheme("LoxBridge")
+
+# Where screenshots land
+output_directory("./fastlane/screenshots")
+
+# Nuke old screenshots before each run
+clear_previous_screenshots(true)
+
+# Clean status bar: 9:41 AM, full battery, full signal
+override_status_bar(true)
+
+# Skip onboarding and enable screenshot-mode sample data in the app
+launch_arguments(["-onboardingCompleted 1", "-SCREENSHOT_MODE 1"])
+
+# Bail on first test failure
+stop_after_first_error(true)
