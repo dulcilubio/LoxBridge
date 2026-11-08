@@ -70,15 +70,7 @@ final class WorkoutProcessor {
     /// Combining both gives a string like "Erik's Apple Watch (Watch6,1)" that Livelox
     /// can display as the recording device. Falls back gracefully when either field is absent.
     private func deviceName(for workout: HKWorkout) -> String {
-        let customName   = workout.device?.name
-        let productType  = workout.sourceRevision.productType
-
-        switch (customName, productType) {
-        case (let name?, let type?): return "\(name) (\(type))"
-        case (let name?, nil):       return name
-        case (nil, let type?):       return type
-        case (nil, nil):             return workout.sourceRevision.source.name
-        }
+        workout.device?.name ?? workout.sourceRevision.source.name
     }
 
     /// Reverse-geocodes a location into a human-readable area name (e.g. "Skatås, Göteborg").

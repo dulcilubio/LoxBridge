@@ -94,11 +94,12 @@ struct WorkoutDiagnosticsView: View {
     @ViewBuilder
     private func workoutsSection(_ report: WorkoutDiagnosticsReport) -> some View {
         Section {
-            if report.workouts.isEmpty {
-                Text("No workouts found in Health for the last 30 days.")
+            let visible = report.workouts.filter(\.status.isVisible)
+            if visible.isEmpty {
+                Text("All recent workouts have been processed — nothing is missing.")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(report.workouts) { item in
+                ForEach(visible) { item in
                     row(item)
                 }
             }

@@ -5,6 +5,8 @@ import SwiftUI
 struct RouteDetailView: View {
     let route: RouteMetadata
 
+    @State private var satellite = false
+
     private var cachedPayload: WatchRoutePayload? {
         WatchSessionManager.shared.cachedPayload(for: route.workoutUUID)
     }
@@ -18,7 +20,18 @@ struct RouteDetailView: View {
                 // MARK: Track map
                 Group {
                     if points.count >= 2 {
-                        RouteTrackView(points: points, speeds: speeds)
+                        ZStack(alignment: .bottomTrailing) {
+                            StaticMapView(points: points, speeds: speeds, satellite: satellite)
+                            Button {
+                                satellite.toggle()
+                            } label: {
+                                Image(systemName: satellite ? "map" : "globe.europe.africa")
+                                    .font(.caption.bold())
+                                    .padding(8)
+                                    .background(.thinMaterial, in: Circle())
+                            }
+                            .padding(10)
+                        }
                     } else {
                         VStack(spacing: 8) {
                             Image(systemName: "map")
@@ -29,11 +42,11 @@ struct RouteDetailView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity)
+                        .background(Color(.systemGray6))
                     }
                 }
                 .frame(maxWidth: .infinity)
                 .aspectRatio(1.0, contentMode: .fit)
-                .background(Color(.systemGray6))
                 .clipShape(RoundedRectangle(cornerRadius: 12))
 
                 // MARK: Stats

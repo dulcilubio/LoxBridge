@@ -8,7 +8,7 @@ enum WorkoutDiagnosticStatus {
     case uploaded
     case saved
     case notOutdoor
-    case skipped
+    case filteredOrRemoved
     case beforeInstall
     case sourceDisabled
     case noRoute
@@ -16,21 +16,30 @@ enum WorkoutDiagnosticStatus {
 
     var label: String {
         switch self {
-        case .uploaded:       return String(localized: "Uploaded to Livelox")
-        case .saved:          return String(localized: "Saved, not uploaded")
-        case .notOutdoor:     return String(localized: "Not an outdoor activity")
-        case .skipped:        return String(localized: "Skipped by filter or removed")
-        case .beforeInstall:  return String(localized: "Recorded before LoxBridge was installed")
-        case .sourceDisabled: return String(localized: "Recording app not enabled")
-        case .noRoute:        return String(localized: "No GPS route in Health")
-        case .waiting:        return String(localized: "Not processed yet")
+        case .uploaded:          return String(localized: "Uploaded to Livelox")
+        case .saved:             return String(localized: "Saved, not uploaded")
+        case .notOutdoor:        return String(localized: "Not an outdoor activity")
+        case .filteredOrRemoved: return String(localized: "Route removed from LoxBridge")
+        case .beforeInstall:     return String(localized: "Recorded before LoxBridge was installed")
+        case .sourceDisabled:    return String(localized: "Recording app not enabled")
+        case .noRoute:           return String(localized: "No GPS route in Health")
+        case .waiting:           return String(localized: "Not processed yet")
+        }
+    }
+
+    /// `true` when shown in the "Missing workouts?" list.
+    /// Uploaded and saved routes are excluded — they are not missing.
+    var isVisible: Bool {
+        switch self {
+        case .uploaded, .saved: return false
+        default: return true
         }
     }
 
     /// `true` when the workout is missing from LoxBridge for a reason the user can override.
     var isMissing: Bool {
         switch self {
-        case .skipped, .beforeInstall, .sourceDisabled, .waiting: return true
+        case .filteredOrRemoved, .beforeInstall, .sourceDisabled, .waiting: return true
         default: return false
         }
     }
@@ -100,14 +109,18 @@ final class WorkoutDiagnostics {
         // Without a route there is nothing to import, whatever else applies — e.g.
         // Garmin Connect writes workouts to Health but not their GPS routes.
         guard hasRoute else { return .noRoute }
-        if storageManager.isProcessed(workoutUUID: workout.uuid) { return .skipped }
+        if storageManager.isProcessed(workoutUUID: workout.uuid) { return .filteredOrRemoved }
         if workout.startDate < storageManager.workoutScanStartDate { return .beforeInstall }
 
         let bundleID = workout.sourceRevision.source.bundleIdentifier
         if bundleID != "se.erikfrick.loxbridge.watchkitapp" {
+            // Only mark as disabled if the source is KNOWN and explicitly disabled.
+            // Unknown sources haven't been seen yet — show as .waiting so the user
+            // knows it will be attempted next time, not that it's blocked.
             let registry = WorkoutSourceRegistry.shared
-            registry.register(bundleID: bundleID, displayName: workout.sourceRevision.source.name)
-            if !registry.isEnabled(bundleID: bundleID) { return .sourceDisabled }
+            if registry.isKnown(bundleID: bundleID) && !registry.isEnabled(bundleID: bundleID) {
+                return .sourceDisabled
+            }
         }
         return .waiting
     }

@@ -10,7 +10,7 @@ struct RouteRowView: View {
                 Image(systemName: statusIcon)
                     .font(.caption2)
                     .foregroundStyle(statusColor)
-                Text(route.status)
+                Text(statusLabel)
                     .font(.caption2)
                     .foregroundStyle(statusColor)
             }
@@ -51,6 +51,14 @@ struct RouteRowView: View {
         ]
         .compactMap { $0 }
         .joined(separator: "  ·  ")
+    }
+
+    private var statusLabel: String {
+        switch route.status {
+        case "Saved":   return "On iPhone · pending Livelox upload"
+        case "Failed":  return "On iPhone · upload failed"
+        default:        return route.status
+        }
     }
 
     private var statusIcon: String {

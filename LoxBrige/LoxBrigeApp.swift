@@ -15,6 +15,9 @@ struct LoxBrigeApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        // Inject realistic sample data before any view renders so screenshot
+        // captures show real route content instead of empty lists.
+        SampleData.injectIfNeeded()
         // Activate WCSession as early as possible so the Watch receives
         // route updates even if the app is never brought to the foreground.
         _ = WatchSessionManager.shared
